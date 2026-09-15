@@ -16,8 +16,9 @@ from moviepy.editor import (
     CompositeAudioClip,
     ImageClip,
     concatenate_audioclips,
+    concatenate_videoclips,
 )
-from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
+from PIL import Image, ImageFilter
 import requests
 import edge_tts
 import pytz
@@ -40,7 +41,6 @@ FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 ESTADO_FILE = "estado_herbolaria.json"
 INGREDIENTES_USADOS_FILE = "ingredientes_usados.json"
 TITULOS_FILE = "titulos_herbolaria_publicados.json"
-ANALYTICS_FILE = "analytics_herbolaria.json"
 
 EXCEL_FILE = "catalogo_xanax.xlsx"
 CATALOGO_INGREDIENTES = "catalogo_ingredientes.json"
@@ -54,97 +54,26 @@ ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
 # ================================================================
-# 🌿 TEMAS VIRALES DE SALUD CON SEO AVANZADO
+# 🌿 TEMAS VIRALES DE SALUD
 # ================================================================
 TEMAS_VIRALES_SALUD = [
-    {
-        "tema": "beneficios_ocultos", 
-        "keywords_cortas": ["beneficios", "propiedades", "natural", "medicinal"], 
-        "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas", "usos medicinales secretos"],
-        "busquedas": 850000, "ctr_potencial": 9.2, "retencion_objetivo": 78, "tendencia": "creciente"
-    },
-    {
-        "tema": "remedio_casero", 
-        "keywords_cortas": ["remedio casero", "natural", "tradicional"], 
-        "keywords_largas": ["remedios caseros efectivos", "como curar naturalmente", "tratamiento natural comprobado"],
-        "busquedas": 920000, "ctr_potencial": 8.8, "retencion_objetivo": 75, "tendencia": "estable"
-    },
-    {
-        "tema": "dato_cientifico", 
-        "keywords_cortas": ["ciencia", "estudio", "comprobado"], 
-        "keywords_largas": ["estudios científicos comprobados", "investigación médica reciente", "evidencia científica"],
-        "busquedas": 680000, "ctr_potencial": 10.5, "retencion_objetivo": 82, "tendencia": "explosiva"
-    },
-    {
-        "tema": "cura_milagrosa", 
-        "keywords_cortas": ["cura", "eliminar", "sanar"], 
-        "keywords_largas": ["como eliminar naturalmente", "cura natural efectiva", "sanación comprobada"],
-        "busquedas": 1200000, "ctr_potencial": 11.3, "retencion_objetivo": 80, "tendencia": "explosiva"
-    },
-    {
-        "tema": "secreto_ancestral", 
-        "keywords_cortas": ["secreto", "ancestral", "tradicional"], 
-        "keywords_largas": ["secreto de los abuelos", "remedio ancestral mexicano", "sabiduría tradicional"],
-        "busquedas": 540000, "ctr_potencial": 9.8, "retencion_objetivo": 77, "tendencia": "creciente"
-    },
+    {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas"], "busquedas": 850000, "ctr_potencial": 9.2, "retencion_objetivo": 78, "tendencia": "creciente"},
+    {"tema": "remedio_casero", "keywords_cortas": ["remedio casero", "natural", "tradicional"], "keywords_largas": ["remedios caseros efectivos", "tratamiento natural"], "busquedas": 920000, "ctr_potencial": 8.8, "retencion_objetivo": 75, "tendencia": "estable"},
+    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "comprobado"], "keywords_largas": ["estudios científicos comprobados", "evidencia científica"], "busquedas": 680000, "ctr_potencial": 10.5, "retencion_objetivo": 82, "tendencia": "explosiva"},
+    {"tema": "cura_milagrosa", "keywords_cortas": ["cura", "eliminar", "sanar"], "keywords_largas": ["como eliminar naturalmente", "cura natural efectiva"], "busquedas": 1200000, "ctr_potencial": 11.3, "retencion_objetivo": 80, "tendencia": "explosiva"},
+    {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "tradicional"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional"], "busquedas": 540000, "ctr_potencial": 9.8, "retencion_objetivo": 77, "tendencia": "creciente"},
 ]
-
-# ================================================================
-# 🎯 FÓRMULAS DE TÍTULOS ÉLITE (ESTILO SHORTS VIRAL)
-# ================================================================
-FORMULAS_TITULOS_SALUD = {
-    "secreto": [
-        "El secreto del {ingrediente} contra {problema}",
-        "El poder oculto del {ingrediente}",
-        "Lo que nadie te cuenta del {ingrediente}",
-    ],
-    "pregunta": [
-        "¿Sabías esto del {ingrediente}?",
-        "¿Puede el {ingrediente} combatir {problema}?",
-        "¿Conocías el {ingrediente}?",
-    ],
-    "beneficio": [
-        "{ingrediente}: El secreto para {beneficio}",
-        "Así {beneficio} con {ingrediente}",
-        "{ingrediente} y su poder para {beneficio}",
-    ],
-}
 
 # ================================================================
 # 🎤 VOCES DINÁMICAS OPTIMIZADAS
 # ================================================================
 VOCES_DISPONIBLES = [
-    {"voz": "es-MX-DaliaNeural", "velocidad": "+12%", "tono": "+2Hz", "estilo": "energico"},
-    {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "tono": "0Hz", "estilo": "dinamico"},
-    {"voz": "es-ES-ElviraNeural", "velocidad": "+15%", "tono": "+3Hz", "estilo": "entusiasta"},
-    {"voz": "es-CO-SalomeNeural", "velocidad": "+10%", "tono": "+1Hz", "estilo": "natural"},
+    {"voz": "es-MX-DaliaNeural", "velocidad": "+12%", "tono": "+2Hz"},
+    {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "tono": "0Hz"},
+    {"voz": "es-ES-ElviraNeural", "velocidad": "+15%", "tono": "+3Hz"},
+    {"voz": "es-CO-SalomeNeural", "velocidad": "+10%", "tono": "+1Hz"},
 ]
 CONFIG_VOZ_ACTUAL = random.choice(VOCES_DISPONIBLES)
-
-# ================================================================
-# 📊 ALGORITMO DE PREDICCIÓN DE VIRALIDAD
-# ================================================================
-def calcular_puntuacion_viralidad(tema):
-    factores = {
-        "busquedas": tema["busquedas"] / 1000000 * 30,
-        "ctr_potencial": tema["ctr_potencial"] * 2.5,
-        "retencion": tema["retencion_objetivo"] * 2.0,
-        "tendencia": 10 if tema["tendencia"] == "explosiva" else 5,
-    }
-    score_total = sum(factores.values())
-    return {"score": score_total, "categoria": "Alta" if score_total > 75 else "Media"}
-
-def calcular_score_titulo_salud(titulo):
-    score = 50
-    if 40 <= len(titulo) <= 70: score += 20
-    elif 30 <= len(titulo) <= 80: score += 10
-    
-    palabras_poder = ["SECRETO", "PODER", "OCULTO", "COMPROBADO", "REAL", "NADIE", "EFECTIVO"]
-    if any(p in titulo.upper() for p in palabras_poder): score += 15
-    if "?" in titulo: score += 10
-    if any(c.isdigit() for c in titulo): score += 8
-    if sum(1 for c in titulo if c.isupper()) > 2: score += 5
-    return min(score, 100)
 
 # ================================================================
 # 🧠 ESTADO Y SELECCIÓN ANTI-REPETICIÓN
@@ -209,7 +138,7 @@ def guardar_titulo(titulo):
         with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
 
 # ================================================================
-# 📝 GENERAR GUION CON SEO ÉLITE MUNDIAL
+# 📝 GENERAR GUION CON SEO ÉLITE
 # ================================================================
 def generar_guion_herbolaria(producto, ingrediente, tema_viral):
     info_ingrediente = "Ingrediente natural con propiedades medicinales"
@@ -222,31 +151,23 @@ def generar_guion_herbolaria(producto, ingrediente, tema_viral):
                 break
     except: pass
 
-    # Extraer problema/beneficio principal del producto
-    beneficios = producto.get("beneficios", "").split(",")[0] if producto.get("beneficios") else "mejorar tu salud"
-    
-    prompt = f"""Eres un experto en herbolaria y nutrición creando contenido VIRAL para YouTube Shorts.
-
-TEMA VIRAL: {tema_viral['tema'].upper()}
+    prompt = f"""Eres un experto en herbolaria creando contenido VIRAL para YouTube Shorts.
+TEMA: {tema_viral['tema'].upper()}
 PRODUCTO: {producto['nombre']}
-INGREDIENTE PRINCIPAL: {ingrediente}
+INGREDIENTE: {ingrediente}
 INFO INGREDIENTE: {info_ingrediente}
-BENEFICIOS CLAVE: {beneficios}
+BENEFICIOS PRODUCTO: {producto['beneficios']}
 
 REGLAS ESTRICTAS:
-- Duración total: 45 segundos exactos
-- ESTRUCTURA DEL GUION:
-  * SEGMENTO 1 (0-25s): Habla SOBRE EL INGREDIENTE {ingrediente}. Inicia con pregunta impactante. Menciona 2-3 beneficios científicos concretos. NO menciones el producto aún.
-  * SEGMENTO 2 (25-45s): Presenta el producto {producto['nombre']}. Di que contiene {ingrediente}. NO menciones WhatsApp ni Telegram en el audio.
-  
-- TÍTULO: Corto, directo, con hashtags integrados (máx 70 caracteres)
-- SIN EMOJIS en el texto hablado
+1. SEGMENTO 1 (0-25s): Habla SOLO del ingrediente {ingrediente}. Inicia con pregunta impactante. Menciona 2-3 beneficios. NO menciones el producto ni WhatsApp/Telegram.
+2. SEGMENTO 2 (25-45s): Presenta el producto {producto['nombre']}. Di que contiene {ingrediente}. NO menciones WhatsApp/Telegram en el audio.
+3. TÍTULO: Formato exacto: "El secreto del {ingrediente} #{ingrediente.replace(' ','')} #saludnatural #herbolaria" (Máx 70 chars).
 
 Devuelve ESTRICTAMENTE este JSON:
 {{
-    "titulo": "Título corto viral con hashtags (ej: 'El secreto del {ingrediente} #saludnatural #herbolaria')",
-    "guion_segmento_1": "Texto de 25 segundos sobre el ingrediente {ingrediente} (65-75 palabras). Pregunta inicial + beneficios.",
-    "guion_segmento_2": "Texto de 20 segundos presentando {producto['nombre']} (50-60 palabras). Sin mencionar WhatsApp/Telegram.",
+    "titulo": "Título viral con hashtags integrados",
+    "guion_segmento_1": "Texto de 25s sobre el ingrediente (65-75 palabras). Pregunta inicial + beneficios.",
+    "guion_segmento_2": "Texto de 20s presentando el producto (50-60 palabras). Sin mencionar contacto.",
     "tags": "tag1, tag2, tag3 (10-15 tags incluyendo keywords cortas y largas)",
     "descripcion_corta": "Descripción SEO (máx 120 caracteres)",
     "gancho_descripcion": "Gancho inicial (máx 90 caracteres)",
@@ -269,31 +190,24 @@ Devuelve ESTRICTAMENTE este JSON:
             if "guion_segmento_1" not in data or len(data["guion_segmento_1"]) < 50:
                 raise ValueError("Texto demasiado corto")
             
-            # Generar título optimizado si es necesario
+            # Forzar formato de título con hashtags si la IA no lo hace bien
             titulo = data.get("titulo", "").strip()
-            if len(titulo) < 30 or len(titulo) > 75 or "#" not in titulo:
-                # Crear título con hashtags
+            if "#" not in titulo or len(titulo) > 75:
                 hashtags = [f"#{ingrediente.replace(' ', '').lower()}", "#saludnatural", "#herbolaria"]
-                titulo_base = random.choice([
-                    f"El secreto del {ingrediente}",
-                    f"El poder del {ingrediente}",
-                    f"¿Conocías el {ingrediente}?",
-                    f"{ingrediente}: {beneficios[:30]}",
-                ])
+                titulo_base = random.choice([f"El secreto del {ingrediente}", f"El poder del {ingrediente}", f"¿Conocías el {ingrediente}?"])
                 titulo = f"{titulo_base} {' '.join(hashtags[:2])}"
             data["titulo"] = titulo
             
-            # Optimizar tags con keywords cortas y largas
+            # Optimizar tags
             tags_list = [t.strip() for t in data.get("tags", "").split(",") if t.strip()][:10]
             for kw in tema_viral.get("keywords_cortas", [])[:2]:
                 if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
             for kw in tema_viral.get("keywords_largas", [])[:2]:
                 if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
-            for ext in [ingrediente.lower(), "salud natural", "bienestar", "herbolaria", "medicina natural"]:
+            for ext in [ingrediente.lower(), "salud natural", "bienestar", "medicina natural"]:
                 if ext not in tags_list and len(tags_list) < 15: tags_list.append(ext)
             
             data["tags"] = ", ".join(tags_list[:15])
-            data["hashtags_descripcion"] = f"#Shorts #{ingrediente.replace(' ', '')} #SaludNatural #Herbolaria"
             return data
         except Exception as e:
             if intento == 5:
@@ -302,7 +216,7 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(5)
 
 # ================================================================
-# 🖼️ IMÁGENES Y VIDEO OPTIMIZADO
+# 🖼️ IMÁGENES Y VIDEO (CORREGIDO Y OPTIMIZADO)
 # ================================================================
 def buscar_imagen_pexels_salud(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -329,7 +243,7 @@ async def generar_audio(texto, path):
         return None
 
 def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
-    print("🎬 Renderizando video con 2 imágenes...")
+    print("🎬 Renderizando video con 2 imágenes (Zoom lento)...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     audio1 = loop.run_until_complete(generar_audio(guion["guion_segmento_1"], "seg1.mp3"))
@@ -340,17 +254,16 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     
     clip1, clip2 = AudioFileClip(audio1), AudioFileClip(audio2)
     audio_total = concatenate_audioclips([clip1, clip2])
-    duracion_total = audio_total.duration
     duracion_seg1 = clip1.duration
     duracion_seg2 = clip2.duration
     
     clips_video = []
     
-    # PRIMERA IMAGEN: Ingrediente/Planta (0-25s)
+    # 1. IMAGEN DEL INGREDIENTE (Pexels)
     try:
         r = requests.get(url_ingrediente, timeout=15)
-        img_ingrediente = Image.open(io.BytesIO(r.content)).convert("RGB").resize((1080, 1920))
-        img_ingrediente.save("temp_ingrediente.jpg")
+        img = Image.open(io.BytesIO(r.content)).convert("RGB").resize((1080, 1920))
+        img.save("temp_ingrediente.jpg")
         
         video_ingrediente = ImageClip("temp_ingrediente.jpg").set_duration(duracion_seg1)
         video_ingrediente = video_ingrediente.resize(lambda t: 1 + 0.03 * (t / duracion_seg1))  # Zoom lento
@@ -359,11 +272,21 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     except Exception as e:
         print(f"⚠️ Error con imagen de ingrediente: {e}")
     
-    # SEGUNDA IMAGEN: Producto (25-45s)
+    # 2. IMAGEN DEL PRODUCTO (Catálogo)
     try:
         r = requests.get(url_producto, timeout=15, verify=False)
-        img_producto = Image.open(io.BytesIO(r.content)).convert("RGBA").resize((1080, 1920))
-        img_producto.save("temp_producto.jpg")
+        img = Image.open(io.BytesIO(r.content))
+        
+        # ✅ CORRECCIÓN CRÍTICA: Convertir RGBA a RGB para evitar error de guardado JPEG
+        if img.mode == 'RGBA':
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        img = img.resize((1080, 1920))
+        img.save("temp_producto.jpg")
         
         video_producto = ImageClip("temp_producto.jpg").set_duration(duracion_seg2)
         video_producto = video_producto.resize(lambda t: 1 + 0.03 * (t / duracion_seg2))  # Zoom lento
@@ -385,7 +308,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     if musicas:
         for musica_path in musicas:
             try:
-                musica = AudioFileClip(musica_path).subclip(0, duracion_total).volumex(0.10)
+                musica = AudioFileClip(musica_path).subclip(0, duracion_seg1 + duracion_seg2).volumex(0.10)
                 audio_final = CompositeAudioClip([audio_total, musica])
                 video_final = video_final.set_audio(audio_final)
                 print("✅ Música de fondo agregada")
@@ -395,12 +318,11 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
                 continue
     
     if not musica_aplicada:
-        print("️ No se pudo cargar música. Solo voz.")
+        print("⚠️ No se pudo cargar música. El video se publicará solo con la voz.")
         video_final = video_final.set_audio(audio_total)
     
     video_final.write_videofile("short_final.mp4", fps=24, codec="libx264", audio_codec="aac", verbose=False, logger=None)
     
-    # Limpiar temporales
     for f in ["seg1.mp3", "seg2.mp3", "temp_ingrediente.jpg", "temp_producto.jpg"]:
         if os.path.exists(f): os.remove(f)
     
@@ -417,7 +339,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         print(f"❌ Error autenticando YouTube: {e}")
         return None
     
-    # Descripción con WhatsApp y Telegram SOLO AQUÍ (no en el audio)
+    # ✅ WhatsApp y Telegram SOLO en la descripción
     descripcion = f"""{gancho}
 
 {contexto}
@@ -426,11 +348,11 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 💬 WhatsApp: {WHATSAPP_NUMBER}
 🤖 Asistente Inteligente: {TELEGRAM_BOT}
 
- Canal: {CANAL_LINK}
+🔗 Canal: {CANAL_LINK}
 📘 Facebook: {FACEBOOK_LINK}
 
 📦 Envíos a todo México
- Aceptamos todas las formas de pago
+💳 Aceptamos todas las formas de pago
 
 #{' #'.join([t.strip() for t in tags_str.split(',')[:5]])} #Shorts #SaludNatural #Herbolaria #{ingrediente.replace(' ', '')}"""
     
@@ -451,12 +373,12 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         return None
 
 # ================================================================
-#  MAIN
+# 🚀 MAIN
 # ================================================================
 def main():
     print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']} ({CONFIG_VOZ_ACTUAL['estilo']})")
+    print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']}")
     
     estado = cargar_estado()
     hoy = datetime.now(pytz.timezone("America/Mexico_City")).date().isoformat()
