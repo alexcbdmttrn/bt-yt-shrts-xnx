@@ -28,7 +28,7 @@ from rembg import remove
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ================================================================
-# CONFIGURACIÓN
+# CONFIGURACIÓN ÉLITE - HERBOLARIA XANAX
 # ================================================================
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -52,7 +52,7 @@ ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
 # ================================================================
-# 🌿 TEMAS VIRALES DE SALUD
+#  TEMAS VIRALES DE SALUD
 # ================================================================
 TEMAS_VIRALES_SALUD = [
     {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas"], "busquedas": 850000, "ctr_potencial": 9.2, "retencion_objetivo": 78, "tendencia": "creciente"},
@@ -63,7 +63,7 @@ TEMAS_VIRALES_SALUD = [
 ]
 
 # ================================================================
-#  VOCES DINÁMICAS
+# 🎤 VOCES DINÁMICAS
 # ================================================================
 VOCES_DISPONIBLES = [
     {"voz": "es-MX-DaliaNeural", "velocidad": "+12%", "tono": "+2Hz"},
@@ -136,7 +136,7 @@ def guardar_titulo(titulo):
         with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
 
 # ================================================================
-# 📝 GENERAR GUION CON SEO ÉLITE
+#  GENERAR GUION CON CTA HABLADO AL FINAL
 # ================================================================
 def generar_guion_herbolaria(producto, ingrediente, tema_viral):
     info_ingrediente = "Ingrediente natural con propiedades medicinales"
@@ -149,23 +149,26 @@ def generar_guion_herbolaria(producto, ingrediente, tema_viral):
                 break
     except: pass
 
+    # ✅ NUEVO PROMPT: Incluye CTA hablado al final del Segmento 2
     prompt = f"""Eres un experto en herbolaria creando contenido VIRAL para YouTube Shorts.
 TEMA: {tema_viral['tema'].upper()}
 PRODUCTO: {producto['nombre']}
 INGREDIENTE: {ingrediente}
 INFO INGREDIENTE: {info_ingrediente}
 BENEFICIOS PRODUCTO: {producto['beneficios']}
+WHATSAPP: {WHATSAPP_NUMBER}
+TELEGRAM: {TELEGRAM_BOT}
 
 REGLAS ESTRICTAS:
-1. SEGMENTO 1 (0-25s): Habla SOLO del ingrediente {ingrediente}. Inicia con pregunta impactante. Menciona 2-3 beneficios. NO menciones el producto ni WhatsApp/Telegram.
-2. SEGMENTO 2 (25-45s): Presenta el producto {producto['nombre']}. Di que contiene {ingrediente}. NO menciones WhatsApp/Telegram en el audio.
+1. SEGMENTO 1 (0-25s): Habla SOLO del ingrediente {ingrediente}. Inicia con pregunta impactante. Menciona 2-3 beneficios. NO menciones el producto ni contacto.
+2. SEGMENTO 2 (25-45s): Presenta el producto {producto['nombre']}. Di que contiene {ingrediente}. Y AL FINAL (últimas 2 oraciones) DEBES INCLUIR OBLIGATORIAMENTE esta invitación hablada: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp al número que aparece en la descripción, o busca a nuestro asesor inteligente en Telegram como alex xanax bot."
 3. TÍTULO: Formato exacto: "El secreto del {ingrediente} #{ingrediente.replace(' ','')} #saludnatural #herbolaria" (Máx 70 chars).
 
 Devuelve ESTRICTAMENTE este JSON:
 {{
     "titulo": "Título viral con hashtags integrados",
     "guion_segmento_1": "Texto de 25s sobre el ingrediente (65-75 palabras). Pregunta inicial + beneficios.",
-    "guion_segmento_2": "Texto de 20s presentando el producto (50-60 palabras). Sin mencionar contacto.",
+    "guion_segmento_2": "Texto de 20s presentando el producto (50-60 palabras). DEBE terminar con la invitación a contactar por WhatsApp y Telegram.",
     "tags": "tag1, tag2, tag3 (10-15 tags incluyendo keywords cortas y largas)",
     "descripcion_corta": "Descripción SEO (máx 120 caracteres)",
     "gancho_descripcion": "Gancho inicial (máx 90 caracteres)",
@@ -187,6 +190,20 @@ Devuelve ESTRICTAMENTE este JSON:
             data = json.loads(json_str, strict=False)
             if "guion_segmento_1" not in data or len(data["guion_segmento_1"]) < 50:
                 raise ValueError("Texto demasiado corto")
+            
+            # ✅ VALIDACIÓN: Si el Segmento 2 no incluye CTA, agregarlo automáticamente
+            guion_seg2 = data.get("guion_segmento_2", "")
+            cta_obligatorio = "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o busca a nuestro asesor inteligente en Telegram."
+            
+            if "whatsapp" not in guion_seg2.lower() and "telegram" not in guion_seg2.lower():
+                print("⚠️ La IA no incluyó el CTA. Agregándolo automáticamente...")
+                # Remover última oración si existe y agregar CTA
+                oraciones = re.split(r'(?<=[.!?])\s+', guion_seg2)
+                if len(oraciones) > 2:
+                    oraciones = oraciones[:-1]  # Quitar última oración
+                oraciones.append(cta_obligatorio)
+                guion_seg2 = " ".join(oraciones)
+                data["guion_segmento_2"] = guion_seg2
             
             titulo = data.get("titulo", "").strip()
             if "#" not in titulo or len(titulo) > 75:
@@ -212,7 +229,7 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(5)
 
 # ================================================================
-# ️ IMÁGENES Y VIDEO CON PRODUCTO RECORTADO
+# 🖼️ IMÁGENES Y VIDEO CON PRODUCTO RECORTADO
 # ================================================================
 def buscar_imagen_pexels_salud(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -255,9 +272,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
     
     clips_video = []
     
-    # ==========================================
     # ESCENA 1: Ingrediente (0-25s)
-    # ==========================================
     try:
         r = requests.get(url_ingrediente, timeout=15)
         img = Image.open(io.BytesIO(r.content)).convert("RGB").resize((1080, 1920))
@@ -270,9 +285,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
     except Exception as e:
         print(f"⚠️ Error con imagen de ingrediente: {e}")
     
-    # ==========================================
     # ESCENA 2: Producto RECORTADO sobre Fondo Bonito (25-45s)
-    # ==========================================
     try:
         print("   🎨 Preparando escena del producto recortado...")
         url_fondo = buscar_imagen_pexels_salud(f"{ingrediente} natural healthy background")
@@ -304,7 +317,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
         clips_video.append(video_producto)
         print("✅ Escena 2: Producto recortado sobre fondo profesional cargado")
     except Exception as e:
-        print(f"️ Error componiendo producto: {e}. Usando imagen original.")
+        print(f"⚠️ Error componiendo producto: {e}. Usando imagen original.")
         try:
             r_prod = requests.get(url_producto, timeout=15, verify=False)
             img = Image.open(io.BytesIO(r_prod.content)).convert("RGB").resize((1080, 1920))
@@ -321,15 +334,12 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
     
     video_final = concatenate_videoclips(clips_video, method="compose")
     
-    # ==========================================
-    # 🎵 MÚSICA DE FONDO (CORREGIDO CON DEBUG)
-    # ==========================================
+    # 🛡️ BLINDAJE ANTI-FALLOS DE MÚSICA
     print("\n🔍 Buscando archivos de música en el repositorio...")
     todos_archivos = os.listdir(".")
     mp3_files = [f for f in todos_archivos if f.lower().endswith(".mp3")]
     print(f"   📂 Archivos .mp3 encontrados: {mp3_files}")
     
-    # Filtrar solo los que NO son audios generados y que pesen más de 100 bytes
     musicas = []
     for f in mp3_files:
         if f.startswith("seg"):
@@ -337,7 +347,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
             continue
         tamano = os.path.getsize(f)
         print(f"    {f}: {tamano} bytes")
-        if tamano > 100:  # ✅ Reducido de 5000 a 100
+        if tamano > 100:
             musicas.append(f)
     
     print(f"   ✅ Música válida encontrada: {musicas}")
@@ -361,7 +371,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
                 continue
     
     if not musica_aplicada:
-        print("⚠️ No se pudo cargar música. El video se publicará solo con la voz.")
+        print("️ No se pudo cargar música. El video se publicará solo con la voz.")
         video_final = video_final.set_audio(audio_total)
     
     video_final.write_videofile("short_final.mp4", fps=24, codec="libx264", audio_codec="aac", verbose=False, logger=None)
@@ -372,7 +382,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
     return "short_final.mp4"
 
 # ================================================================
-#  SUBIR A YOUTUBE
+# 📤 SUBIR A YOUTUBE
 # ================================================================
 def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, contexto, ingrediente):
     try:
@@ -388,9 +398,9 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 
 📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
 💬 Contáctanos directamente por WhatsApp: {WHATSAPP_NUMBER}
- O contacta a nuestro Asesor Inteligente en Telegram: {TELEGRAM_BOT}
+🤖 O contacta a nuestro Asesor Inteligente en Telegram: {TELEGRAM_BOT}
 
- Más contenido en nuestro canal: {CANAL_LINK}
+🔗 Más contenido en nuestro canal: {CANAL_LINK}
 📘 Síguenos en Facebook: {FACEBOOK_LINK}
 
 #{' #'.join([t.strip() for t in tags_str.split(',')[:5]])} #Shorts #SaludNatural #Herbolaria #{ingrediente.replace(' ', '')}"""
@@ -408,7 +418,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         print(f"✅ Short subido: https://youtu.be/{response['id']}")
         return response["id"]
     except Exception as e:
-        print(f"❌ Error subiendo a YouTube: {e}")
+        print(f" Error subiendo a YouTube: {e}")
         return None
 
 # ================================================================
@@ -416,8 +426,8 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # ================================================================
 def main():
     print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts")
-    print(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']}")
+    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f" Voz: {CONFIG_VOZ_ACTUAL['voz']}")
     
     estado = cargar_estado()
     hoy = datetime.now(pytz.timezone("America/Mexico_City")).date().isoformat()
@@ -440,6 +450,8 @@ def main():
     tema_viral = max(TEMAS_VIRALES_SALUD, key=lambda x: x.get("ctr_potencial", 0) * random.uniform(0.8, 1.2))
     guion = generar_guion_herbolaria(producto, ingrediente, tema_viral)
     print(f"📝 Título: {guion['titulo']}")
+    print(f"️ Segmento 1: {guion['guion_segmento_1'][:80]}...")
+    print(f"🎙️ Segmento 2: {guion['guion_segmento_2'][:80]}...")
     
     url_ingrediente = buscar_imagen_pexels_salud(ingrediente)
     print(f"🔍 Imagen del ingrediente: {url_ingrediente[:80]}...")
@@ -459,7 +471,7 @@ def main():
         estado["publicaciones_hoy"] += 1
         estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
         guardar_estado(estado)
-        print(f"\n ¡Publicado exitosamente!")
+        print(f"\n🎉 ¡Publicado exitosamente!")
         print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
         print(f"   🤖 Telegram: {TELEGRAM_BOT}")
         print(f"   🔗 URL: https://youtu.be/{video_id}")
@@ -472,7 +484,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"❌ Error fatal: {e}")
+        print(f" Error fatal: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
