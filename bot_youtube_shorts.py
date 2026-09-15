@@ -190,7 +190,6 @@ Devuelve ESTRICTAMENTE este JSON:
             if "guion_segmento_1" not in data or len(data["guion_segmento_1"]) < 50:
                 raise ValueError("Texto demasiado corto")
             
-            # Forzar formato de título con hashtags si la IA no lo hace bien
             titulo = data.get("titulo", "").strip()
             if "#" not in titulo or len(titulo) > 75:
                 hashtags = [f"#{ingrediente.replace(' ', '').lower()}", "#saludnatural", "#herbolaria"]
@@ -198,7 +197,6 @@ Devuelve ESTRICTAMENTE este JSON:
                 titulo = f"{titulo_base} {' '.join(hashtags[:2])}"
             data["titulo"] = titulo
             
-            # Optimizar tags
             tags_list = [t.strip() for t in data.get("tags", "").split(",") if t.strip()][:10]
             for kw in tema_viral.get("keywords_cortas", [])[:2]:
                 if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
@@ -216,7 +214,7 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(5)
 
 # ================================================================
-# 🖼️ IMÁGENES Y VIDEO (CORREGIDO Y OPTIMIZADO)
+# 🖼️ IMÁGENES Y VIDEO
 # ================================================================
 def buscar_imagen_pexels_salud(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -259,25 +257,22 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     
     clips_video = []
     
-    # 1. IMAGEN DEL INGREDIENTE (Pexels)
     try:
         r = requests.get(url_ingrediente, timeout=15)
         img = Image.open(io.BytesIO(r.content)).convert("RGB").resize((1080, 1920))
         img.save("temp_ingrediente.jpg")
         
         video_ingrediente = ImageClip("temp_ingrediente.jpg").set_duration(duracion_seg1)
-        video_ingrediente = video_ingrediente.resize(lambda t: 1 + 0.03 * (t / duracion_seg1))  # Zoom lento
+        video_ingrediente = video_ingrediente.resize(lambda t: 1 + 0.03 * (t / duracion_seg1))
         clips_video.append(video_ingrediente)
         print("✅ Imagen del ingrediente cargada")
     except Exception as e:
         print(f"⚠️ Error con imagen de ingrediente: {e}")
     
-    # 2. IMAGEN DEL PRODUCTO (Catálogo)
     try:
         r = requests.get(url_producto, timeout=15, verify=False)
         img = Image.open(io.BytesIO(r.content))
         
-        # ✅ CORRECCIÓN CRÍTICA: Convertir RGBA a RGB para evitar error de guardado JPEG
         if img.mode == 'RGBA':
             background = Image.new('RGB', img.size, (255, 255, 255))
             background.paste(img, mask=img.split()[3])
@@ -289,7 +284,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
         img.save("temp_producto.jpg")
         
         video_producto = ImageClip("temp_producto.jpg").set_duration(duracion_seg2)
-        video_producto = video_producto.resize(lambda t: 1 + 0.03 * (t / duracion_seg2))  # Zoom lento
+        video_producto = video_producto.resize(lambda t: 1 + 0.03 * (t / duracion_seg2))
         clips_video.append(video_producto)
         print("✅ Imagen del producto cargada")
     except Exception as e:
@@ -299,10 +294,8 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
         print("❌ No se pudieron cargar las imágenes")
         return None
     
-    # Unir videos
     video_final = concatenate_videoclips(clips_video, method="compose")
     
-    # 🛡️ BLINDAJE ANTI-FALLOS DE MÚSICA
     musicas = [f for f in os.listdir(".") if f.endswith(".mp3") and os.path.getsize(f) > 5000 and not f.startswith("seg")]
     musica_aplicada = False
     if musicas:
@@ -329,7 +322,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     return "short_final.mp4"
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE
+#  SUBIR A YOUTUBE (CON DESCRIPCIÓN ACTUALIZADA)
 # ================================================================
 def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, contexto, ingrediente):
     try:
@@ -339,20 +332,17 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         print(f"❌ Error autenticando YouTube: {e}")
         return None
     
-    # ✅ WhatsApp y Telegram SOLO en la descripción
+    # ✅ DESCRIPCIÓN ACTUALIZADA: Sin envíos ni formas de pago, con CTA claro
     descripcion = f"""{gancho}
 
 {contexto}
 
-📲 **CONTÁCTANOS PARA MÁS INFORMACIÓN:**
-💬 WhatsApp: {WHATSAPP_NUMBER}
-🤖 Asistente Inteligente: {TELEGRAM_BOT}
+📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
+💬 Contáctanos directamente por WhatsApp: {WHATSAPP_NUMBER}
+🤖 O contacta a nuestro Asesor Inteligente en Telegram: {TELEGRAM_BOT}
 
-🔗 Canal: {CANAL_LINK}
-📘 Facebook: {FACEBOOK_LINK}
-
-📦 Envíos a todo México
-💳 Aceptamos todas las formas de pago
+🔗 Más contenido en nuestro canal: {CANAL_LINK}
+📘 Síguenos en Facebook: {FACEBOOK_LINK}
 
 #{' #'.join([t.strip() for t in tags_str.split(',')[:5]])} #Shorts #SaludNatural #Herbolaria #{ingrediente.replace(' ', '')}"""
     
@@ -377,7 +367,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # ================================================================
 def main():
     print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts")
-    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']}")
     
     estado = cargar_estado()
@@ -402,11 +392,9 @@ def main():
     guion = generar_guion_herbolaria(producto, ingrediente, tema_viral)
     print(f"📝 Título: {guion['titulo']}")
     
-    # Buscar imagen del ingrediente/planta
     url_ingrediente = buscar_imagen_pexels_salud(ingrediente)
     print(f"🔍 Imagen del ingrediente: {url_ingrediente[:80]}...")
     
-    # URL del producto del Excel
     url_producto = producto["imagen_url"]
     
     video_path = crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto)
@@ -423,7 +411,7 @@ def main():
         estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
         guardar_estado(estado)
         print(f"\n🎉 ¡Publicado exitosamente!")
-        print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
+        print(f"    WhatsApp: {WHATSAPP_NUMBER}")
         print(f"   🤖 Telegram: {TELEGRAM_BOT}")
         print(f"   🔗 URL: https://youtu.be/{video_id}")
         print(f"   📊 Publicaciones hoy: {estado['publicaciones_hoy']}/{MAX_VIDEOS_DIA}")
