@@ -34,5 +34,5 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Actualizar estado herbolaria [skip ci]"
-          # ✅ CORREGIDO: Nombres exactos de los archivos que genera el bot
-          file_pattern: "estado_herbolaria.json ingredientes_usados.json titulos_herbolaria_publicados.json analytics_herbolaria.json"
+          # ✅ CORREGIDO: Solo los archivos que el bot realmente genera
+          file_pattern: "estado_herbolaria.json ingredientes_usados.json titulos_herbolaria_publicados.json"
