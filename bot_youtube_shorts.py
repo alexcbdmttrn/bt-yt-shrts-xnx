@@ -475,7 +475,6 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
                 video_final = video_final.set_audio(audio_final)
                 print("   ✅ Música de fondo agregada al 15%")
                 musica_aplicada = True
-                musica.close()
                 break
             except Exception as e:
                 print(f"   ⚠️ La música '{musica_path}' falló: {e}")
