@@ -18,17 +18,17 @@ from moviepy.editor import (
     concatenate_audioclips,
     concatenate_videoclips,
 )
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageFilter
 import requests
 import edge_tts
 import pytz
 import urllib3
-from rembg import remove  # ✅ LIBRERÍA PARA RECORTAR FONDOS AUTOMÁTICAMENTE
+from rembg import remove
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ================================================================
-# CONFIGURACIÓN ÉLITE - HERBOLARIA XANAX
+# CONFIGURACIÓN
 # ================================================================
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -47,12 +47,9 @@ EXCEL_FILE = "catalogo_xanax.xlsx"
 CATALOGO_INGREDIENTES = "catalogo_ingredientes.json"
 
 MAX_VIDEOS_DIA = 1
-INTERVALO_MIN_HORAS = 4
-INTERVALO_MAX_HORAS = 8
-RETRASO_MAX_MINUTOS = 45
 
 ACTIVAR_DISCLOSURE_IA = True
-DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
+DISCLOSURE_TEXT = "\n Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
 # ================================================================
 # 🌿 TEMAS VIRALES DE SALUD
@@ -66,7 +63,7 @@ TEMAS_VIRALES_SALUD = [
 ]
 
 # ================================================================
-# 🎤 VOCES DINÁMICAS OPTIMIZADAS
+#  VOCES DINÁMICAS
 # ================================================================
 VOCES_DISPONIBLES = [
     {"voz": "es-MX-DaliaNeural", "velocidad": "+12%", "tono": "+2Hz"},
@@ -215,7 +212,7 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(5)
 
 # ================================================================
-# 🖼️ IMÁGENES Y VIDEO CON PRODUCTO RECORTADO (EFECTO ESTUDIO)
+# ️ IMÁGENES Y VIDEO CON PRODUCTO RECORTADO
 # ================================================================
 def buscar_imagen_pexels_salud(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -278,33 +275,26 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
     # ==========================================
     try:
         print("   🎨 Preparando escena del producto recortado...")
-        # 1. Buscar fondo bonito para el producto
         url_fondo = buscar_imagen_pexels_salud(f"{ingrediente} natural healthy background")
         r_fondo = requests.get(url_fondo, timeout=15)
         fondo = Image.open(io.BytesIO(r_fondo.content)).convert("RGB").resize((1080, 1920))
         
-        # 2. Descargar la imagen del producto
         r_prod = requests.get(url_producto, timeout=15, verify=False)
         img_prod_original = Image.open(io.BytesIO(r_prod.content)).convert("RGBA")
         
-        # 3. ✂️ RECORTAR EL FONDO DEL PRODUCTO (IA)
         print("   ✂️ Eliminando fondo del producto automáticamente...")
         img_prod_sin_fondo = remove(img_prod_original)
         
-        # 4. Redimensionar producto para que se vea elegante (45% de la altura)
         target_h = int(1920 * 0.45)
         ratio = target_h / img_prod_sin_fondo.height
         nuevo_w = int(img_prod_sin_fondo.width * ratio)
         img_prod_resized = img_prod_sin_fondo.resize((nuevo_w, target_h), Image.Resampling.LANCZOS)
         
-        # 5. Crear una sombra suave realista para dar efecto 3D
         sombra = img_prod_resized.copy().filter(ImageFilter.GaussianBlur(radius=30))
         
-        # 6. Calcular posición (centrado, en el tercio inferior)
         x = (1080 - img_prod_resized.width) // 2
         y = int(1920 * 0.55)
         
-        # 7. Componer: Fondo -> Sombra -> Producto Recortado
         fondo.paste(sombra, (x - 15, y - 15), sombra)
         fondo.paste(img_prod_resized, (x, y), img_prod_resized)
         fondo.save("temp_producto_compuesto.jpg")
@@ -314,8 +304,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
         clips_video.append(video_producto)
         print("✅ Escena 2: Producto recortado sobre fondo profesional cargado")
     except Exception as e:
-        print(f"⚠️ Error componiendo producto: {e}. Usando imagen original.")
-        # Fallback por si rembg falla
+        print(f"️ Error componiendo producto: {e}. Usando imagen original.")
         try:
             r_prod = requests.get(url_producto, timeout=15, verify=False)
             img = Image.open(io.BytesIO(r_prod.content)).convert("RGB").resize((1080, 1920))
@@ -330,22 +319,45 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
         print("❌ No se pudieron cargar las imágenes")
         return None
     
-    # Unir videos
     video_final = concatenate_videoclips(clips_video, method="compose")
     
-    # 🛡️ BLINDAJE ANTI-FALLOS DE MÚSICA
-    musicas = [f for f in os.listdir(".") if f.endswith(".mp3") and os.path.getsize(f) > 5000 and not f.startswith("seg")]
+    # ==========================================
+    # 🎵 MÚSICA DE FONDO (CORREGIDO CON DEBUG)
+    # ==========================================
+    print("\n🔍 Buscando archivos de música en el repositorio...")
+    todos_archivos = os.listdir(".")
+    mp3_files = [f for f in todos_archivos if f.lower().endswith(".mp3")]
+    print(f"   📂 Archivos .mp3 encontrados: {mp3_files}")
+    
+    # Filtrar solo los que NO son audios generados y que pesen más de 100 bytes
+    musicas = []
+    for f in mp3_files:
+        if f.startswith("seg"):
+            print(f"   ⏭️ Saltando {f} (es audio generado)")
+            continue
+        tamano = os.path.getsize(f)
+        print(f"    {f}: {tamano} bytes")
+        if tamano > 100:  # ✅ Reducido de 5000 a 100
+            musicas.append(f)
+    
+    print(f"   ✅ Música válida encontrada: {musicas}")
+    
     musica_aplicada = False
     if musicas:
         for musica_path in musicas:
             try:
-                musica = AudioFileClip(musica_path).subclip(0, duracion_seg1 + duracion_seg2).volumex(0.10)
+                print(f"   🎵 Probando música: {musica_path}")
+                musica = AudioFileClip(musica_path)
+                print(f"      Duración: {musica.duration}s")
+                musica = musica.subclip(0, duracion_seg1 + duracion_seg2).volumex(0.10)
                 audio_final = CompositeAudioClip([audio_total, musica])
                 video_final = video_final.set_audio(audio_final)
-                print("✅ Música de fondo agregada")
+                print("   ✅ Música de fondo agregada exitosamente")
                 musica_aplicada = True
+                musica.close()
                 break
-            except Exception:
+            except Exception as e:
+                print(f"   ⚠️ La música '{musica_path}' falló: {e}. Intentando siguiente...")
                 continue
     
     if not musica_aplicada:
@@ -360,7 +372,7 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingredien
     return "short_final.mp4"
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE
+#  SUBIR A YOUTUBE
 # ================================================================
 def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, contexto, ingrediente):
     try:
@@ -376,9 +388,9 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 
 📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
 💬 Contáctanos directamente por WhatsApp: {WHATSAPP_NUMBER}
-🤖 O contacta a nuestro Asesor Inteligente en Telegram: {TELEGRAM_BOT}
+ O contacta a nuestro Asesor Inteligente en Telegram: {TELEGRAM_BOT}
 
-🔗 Más contenido en nuestro canal: {CANAL_LINK}
+ Más contenido en nuestro canal: {CANAL_LINK}
 📘 Síguenos en Facebook: {FACEBOOK_LINK}
 
 #{' #'.join([t.strip() for t in tags_str.split(',')[:5]])} #Shorts #SaludNatural #Herbolaria #{ingrediente.replace(' ', '')}"""
@@ -404,7 +416,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # ================================================================
 def main():
     print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts")
-    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']}")
     
     estado = cargar_estado()
@@ -447,8 +459,8 @@ def main():
         estado["publicaciones_hoy"] += 1
         estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
         guardar_estado(estado)
-        print(f"\n🎉 ¡Publicado exitosamente!")
-        print(f"    WhatsApp: {WHATSAPP_NUMBER}")
+        print(f"\n ¡Publicado exitosamente!")
+        print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
         print(f"   🤖 Telegram: {TELEGRAM_BOT}")
         print(f"   🔗 URL: https://youtu.be/{video_id}")
         print(f"   📊 Publicaciones hoy: {estado['publicaciones_hoy']}/{MAX_VIDEOS_DIA}")
