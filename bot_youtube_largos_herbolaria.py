@@ -12,12 +12,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from moviepy.editor import (
-    AudioFileClip,
-    CompositeAudioClip,
-    ImageClip,
-    concatenate_audioclips,
-    concatenate_videoclips,
-    AudioClip,
+    AudioFileClip, CompositeAudioClip, ImageClip,
+    concatenate_audioclips, concatenate_videoclips, AudioClip,
 )
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 import requests
@@ -40,27 +36,40 @@ TELEGRAM_BOT = "@alex_xanax_bot"
 CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
 FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
-# Archivos de estado PROPIOS del bot de largos (no comparte con Shorts)
+# ✅ Estado PROPIO del bot de largos (no choca con el de Shorts)
 ESTADO_FILE = "estado_largos_herbolaria.json"
-PRODUCTOS_USADOS_FILE = "productos_largos_usados.json"
+INGREDIENTES_LARGOS_FILE = "ingredientes_largos_usados.json"   # ✅ anti-repetición por INGREDIENTE (igual que Shorts)
 TITULOS_FILE = "titulos_largos_publicados.json"
 
+# ✅ MISMOS CATÁLOGOS QUE EL BOT DE SHORTS
 EXCEL_FILE = "catalogo_xanax.xlsx"
+CATALOGO_INGREDIENTES = "catalogo_ingredientes.json"
+CATALOGO_CURIOSIDADES = "catalogo_curiosidades_salud.json"
 
-ANCHO, ALTO = 1920, 1080  # ✅ HORIZONTAL
+ANCHO, ALTO = 1920, 1080
 
 MAX_LARGOS_DIA = 1
-INTERVALO_MIN_HORAS = 20   # ~1 video por día a hora variable
+INTERVALO_MIN_HORAS = 20
 INTERVALO_MAX_HORAS = 26
 RETRASO_MAX_MINUTOS = 30
-
 PAUSA_ENTRE_SEGMENTOS = 0.5
 
 ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
 # ================================================================
-# 🎤 VOCES (UNA POR VIDEO, CON FALLBACK SI FALLA)
+# 🌿 TEMAS VIRALES (LOS MISMOS DEL BOT DE SHORTS)
+# ================================================================
+TEMAS_VIRALES_SALUD = [
+    {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas"], "ctr_potencial": 9.2},
+    {"tema": "remedio_casero", "keywords_cortas": ["remedio casero", "natural", "tradicional"], "keywords_largas": ["remedios caseros efectivos", "tratamiento natural"], "ctr_potencial": 8.8},
+    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "comprobado"], "keywords_largas": ["estudios científicos comprobados", "evidencia científica"], "ctr_potencial": 10.5},
+    {"tema": "cura_milagrosa", "keywords_cortas": ["cura", "eliminar", "sanar"], "keywords_largas": ["como eliminar naturalmente", "cura natural efectiva"], "ctr_potencial": 11.3},
+    {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "tradicional"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional"], "ctr_potencial": 9.8},
+]
+
+# ================================================================
+# 🎤 VOCES (UNA POR VIDEO CON FALLBACK)
 # ================================================================
 VOCES_DISPONIBLES = [
     {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "estilo": "profesional"},
@@ -71,7 +80,7 @@ VOCES_DISPONIBLES = [
 ]
 
 # ================================================================
-# 🧠 ESTADO Y SELECCIÓN DE PRODUCTO
+# 🧠 ESTADO Y ANTI-REPETICIÓN (MISMA LÓGICA QUE SHORTS)
 # ================================================================
 def cargar_estado():
     try:
@@ -81,16 +90,20 @@ def cargar_estado():
 def guardar_estado(estado):
     with open(ESTADO_FILE, "w", encoding="utf-8") as f: json.dump(estado, f, indent=2, ensure_ascii=False)
 
-def cargar_productos_usados():
+def cargar_ingredientes_largos_usados():
     try:
-        with open(PRODUCTOS_USADOS_FILE, "r", encoding="utf-8") as f: return json.load(f)
-    except: return {"productos": []}
+        with open(INGREDIENTES_LARGOS_FILE, "r", encoding="utf-8") as f: return json.load(f).get("ingredientes", [])
+    except: return []
 
-def guardar_producto_usado(nombre):
-    data = cargar_productos_usados()
-    if nombre not in data["productos"]:
-        data["productos"].append(nombre)
-    with open(PRODUCTOS_USADOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
+def guardar_ingrediente_largo_usado(ingrediente, producto):
+    data = {"ingredientes": cargar_ingredientes_largos_usados()}
+    entry = f"{ingrediente}|{producto}"
+    if entry not in data["ingredientes"]:
+        data["ingredientes"].append(entry)
+    with open(INGREDIENTES_LARGOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
+
+def reiniciar_ingredientes_largos():
+    with open(INGREDIENTES_LARGOS_FILE, "w", encoding="utf-8") as f: json.dump({"ingredientes": []}, f)
 
 def cargar_titulos():
     try:
@@ -102,18 +115,6 @@ def guardar_titulo(titulo):
     if titulo not in data["titulos"]:
         data["titulos"].append(titulo)
         with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
-
-def seleccionar_producto_largo():
-    df = pd.read_excel(EXCEL_FILE, sheet_name="Productos")
-    df = df[df["imagen_url"].notna() & (df["imagen_url"] != "")]
-    df = df[df["ingredientes_clave"].notna() & (df["ingredientes_clave"] != "")]
-    usados = cargar_productos_usados()["productos"]
-    disponibles = df[~df["nombre"].isin(usados)]
-    if disponibles.empty:
-        print("🔄 Todos los productos usados en largos. Reiniciando historial...")
-        with open(PRODUCTOS_USADOS_FILE, "w", encoding="utf-8") as f: json.dump({"productos": []}, f)
-        disponibles = df
-    return disponibles.sample(1).iloc[0].to_dict()
 
 def deberia_publicar_ahora(estado):
     hoy = datetime.now(pytz.timezone("America/Mexico_City")).date().isoformat()
@@ -137,9 +138,65 @@ def deberia_publicar_ahora(estado):
     return True
 
 # ================================================================
-# 🤖 IA GENERA GUION COMPLETO DE 5 MINUTOS (8 SEGMENTOS)
+# 🌱 SELECCIÓN DE PRODUCTO + INGREDIENTE (ANTI-REPETICIÓN, IGUAL QUE SHORTS)
 # ================================================================
-def ia_genera_guion_largo(producto):
+def seleccionar_producto_e_ingrediente_largo():
+    df = pd.read_excel(EXCEL_FILE, sheet_name="Productos")
+    df = df[df["imagen_url"].notna() & (df["imagen_url"] != "")]
+    df = df[df["ingredientes_clave"].notna() & (df["ingredientes_clave"] != "")]
+    usados = cargar_ingredientes_largos_usados()
+
+    for _ in range(60):
+        producto = df.sample(1).iloc[0].to_dict()
+        ingredientes = [i.strip() for i in str(producto["ingredientes_clave"]).split(",") if i.strip()]
+        if not ingredientes: continue
+        ingrediente = random.choice(ingredientes)   # ✅ aleatorio, no siempre el primero
+        if f"{ingrediente}|{producto['nombre']}" not in usados:
+            print(f"✅ Par elegido: {ingrediente} → {producto['nombre']}")
+            return producto, ingrediente
+
+    print("🔄 Pool de ingredientes agotado en largos. Reiniciando historial...")
+    reiniciar_ingredientes_largos()
+    producto = df.sample(1).iloc[0].to_dict()
+    ingredientes = [i.strip() for i in str(producto["ingredientes_clave"]).split(",") if i.strip()]
+    return producto, random.choice(ingredientes)
+
+# ================================================================
+# 📚 LECTURA DE LOS JSON (FICHA DE INGREDIENTE + CURIOSIDAD)
+# ================================================================
+def cargar_json_catalogo(ruta):
+    try:
+        with open(ruta, "r", encoding="utf-8") as f: return json.load(f)
+    except Exception:
+        return []
+
+def obtener_info_ingrediente_catalogo(ingrediente):
+    for item in cargar_json_catalogo(CATALOGO_INGREDIENTES):
+        nombre = str(item.get("nombre", "")).lower()
+        if nombre and (ingrediente.lower() in nombre or nombre in ingrediente.lower()):
+            partes = []
+            for clave in ["descripcion", "beneficios", "propiedades", "formas_de_uso", "caracteristicas_visuales", "datos_curiosos"]:
+                val = item.get(clave)
+                if val:
+                    if isinstance(val, list): val = ", ".join(map(str, val))
+                    partes.append(f"{clave}: {val}")
+            return " | ".join(partes)
+    return ""
+
+def obtener_curiosidad_catalogo(ingrediente):
+    curios = cargar_json_catalogo(CATALOGO_CURIOSIDADES)
+    if not curios: return ""
+    relacionadas = [c for c in curios if ingrediente.lower() in json.dumps(c, ensure_ascii=False).lower()]
+    elegida = random.choice(relacionadas) if relacionadas else random.choice(curios)
+    return f"{elegida.get('titulo', '')} {elegida.get('dato_curioso', '')}".strip()
+
+# ================================================================
+# 🤖 IA GENERA GUION DE 5 MIN (8 SEGMENTOS) CON CATÁLOGOS Y TEMA
+# ================================================================
+def ia_genera_guion_largo(producto, ingrediente, tema_viral):
+    info_catalogo = obtener_info_ingrediente_catalogo(ingrediente) or "Sin ficha en catálogo; usa conocimiento general verificado."
+    curiosidad = obtener_curiosidad_catalogo(ingrediente) or ""
+
     prompt = f"""Eres guionista experto en salud natural y SEO para videos LARGOS de YouTube (5 minutos, horizontal).
 
 📦 PRODUCTO COMPLETO:
@@ -149,28 +206,32 @@ RECOMENDADO PARA: {producto.get('recomendado_para')}
 INGREDIENTES CLAVE: {producto.get('ingredientes_clave')}
 BENEFICIOS: {producto.get('beneficios')}
 MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
-CONSEJOS: {producto.get('CONSEJOS Y RECOMENDACIONES')}
+
+🌱 INGREDIENTE ESTRELLA OBLIGATORIO (NO lo cambies): {ingrediente}
+📚 FICHA DEL CATÁLOGO DEL INGREDIENTE: {info_catalogo}
+💡 DATO CURIOSO DEL CATÁLOGO (úsalo en el hook o en un beneficio): {curiosidad}
+🎯 TEMA VIRAL DE ESTE VIDEO: {tema_viral['tema'].upper()} (keywords: {', '.join(tema_viral['keywords_cortas'])})
 
 🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~5 minutos):
-1. "hook" (15s, 35-45 palabras): Pregunta o dato impactante del ingrediente estrella. Sin música aún.
-2. "problema" (30s, 70-85 palabras): Describe el problema/síntoma que sufre la audiencia ({producto.get('recomendado_para')}).
-3. "ingrediente" (45s, 105-125 palabras): Presenta el ingrediente estrella REAL (si dice "Sabor Piña" usa "Piña"; si dice "Extracto de X" usa "X"). Origen e historia breve.
+1. "hook" (15s, 35-45 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso si existe).
+2. "problema" (30s, 70-85 palabras): El problema/síntoma que sufre la audiencia ({producto.get('recomendado_para')}).
+3. "ingrediente" (45s, 105-125 palabras): Presenta el ingrediente estrella, origen e historia breve.
 4. "beneficio_1" (30s, 70-85 palabras): Primer beneficio científico concreto.
 5. "beneficio_2" (30s, 70-85 palabras): Segundo beneficio científico concreto.
 6. "beneficio_3" (30s, 70-85 palabras): Tercer beneficio científico concreto.
-7. "producto" (60s, 140-165 palabras): Presenta el producto {producto.get('nombre')}, cómo contiene el ingrediente, modo de empleo.
-8. "cta" (60s, 140-165 palabras): Resumen de beneficios + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+7. "producto" (60s, 140-165 palabras): Presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
+8. "cta" (60s, 140-165 palabras): Resumen + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
 
 REGLAS:
-- Elige UN ingrediente estrella real y úsalo de forma coherente en todo el guion.
-- NO digas números de WhatsApp/Telegram en el audio (solo en la frase final del cta).
+- Si el ingrediente obligatorio suena a saborizante (ej: "Sabor Piña Natural"), habla del ingrediente REAL ("Piña") pero mantén la coherencia con el producto.
+- NO digas números de WhatsApp/Telegram en el audio (solo la frase final del cta).
 - Tono educativo, cálido y cercano. Sin emojis en el texto hablado.
-- Cada segmento incluye "texto_pantalla" (máx 5 palabras, ej: "BENEFICIO 1: CONTROLA GLUCOSA") y "query_pexels" (en inglés, para imagen horizontal 16:9 del subtema).
+- Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, imagen horizontal 16:9 del subtema).
 
 Devuelve ESTRICTAMENTE este JSON:
 {{
-  "ingrediente_elegido": "nombre real del ingrediente",
-  "titulo": "Título SEO de video largo (máx 70 chars, sin hashtags, ej: 'Cempasúchil: la planta que regula tu azúcar (beneficios comprobados)')",
+  "ingrediente_real": "nombre real normalizado del ingrediente para voz y búsqueda de imágenes (ej: Piña)",
+  "titulo": "Título SEO de video largo (máx 70 chars, sin hashtags, variado: pregunta, número, secreto, cómo, verdad...)",
   "segmentos": {{
     "hook": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "problema": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
@@ -181,7 +242,7 @@ Devuelve ESTRICTAMENTE este JSON:
     "producto": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "cta": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}}
   }},
-  "tags": "12-15 tags separados por coma (keywords cortas y largas)",
+  "tags": "12-15 tags separados por coma (keywords cortas y largas del tema {tema_viral['tema']})",
   "gancho_descripcion": "Gancho máx 90 caracteres",
   "contexto_descripcion": "1-2 oraciones de contexto"
 }}"""
@@ -199,19 +260,17 @@ Devuelve ESTRICTAMENTE este JSON:
             i0, i1 = resp.find('{'), resp.rfind('}')
             data = json.loads(resp[i0:i1+1], strict=False)
 
-            segs = data.get("segmentos", {})
             orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
             for k in orden:
-                if k not in segs or len(segs[k].get("texto", "")) < 40:
+                if k not in data.get("segmentos", {}) or len(data["segmentos"][k].get("texto", "")) < 40:
                     raise ValueError(f"Segmento {k} faltante o corto")
 
-            # Forzar CTA final exacto
-            cta_txt = segs["cta"]["texto"]
+            cta_txt = data["segmentos"]["cta"]["texto"]
             if "contactos están en la descripción" not in cta_txt.lower():
-                segs["cta"]["texto"] = cta_txt.rstrip() + " ¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
-            data["segmentos"] = segs
-            print(f"✅ Guion listo. Ingrediente: {data.get('ingrediente_elegido')}")
-            print(f"📝 Título: {data.get('titulo')}")
+                data["segmentos"]["cta"]["texto"] = cta_txt.rstrip() + " ¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+
+            data["ingrediente_real"] = data.get("ingrediente_real") or ingrediente
+            print(f"✅ Guion listo. Ingrediente real: {data['ingrediente_real']} | Título: {data.get('titulo')}")
             return data
         except Exception as e:
             print(f"⚠️ Intento {intento+1} falló: {e}")
@@ -250,7 +309,7 @@ def generar_audio(texto, path, voz):
     return None
 
 # ================================================================
-# 🖼️ IMÁGENES HORIZONTALES + TEXTO EN PANTALLA
+# 🖼️ IMÁGENES HORIZONTALES + TEXTO + PRODUCTO RECORTADO
 # ================================================================
 def buscar_imagen_pexels_horizontal(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -283,7 +342,6 @@ def descargar_imagen(url, salida):
     return salida
 
 def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
-    """Quema un texto elegante en la imagen (tercio inferior o centro)."""
     try:
         with Image.open(img_path) as img:
             img = img.convert("RGBA")
@@ -292,16 +350,14 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
             font = None
             for size in range(72, 36, -4):
                 font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
-                w = draw.textbbox((0, 0), texto.upper(), font=font)[2]
-                if w < ANCHO * 0.85: break
+                if draw.textbbox((0, 0), texto.upper(), font=font)[2] < ANCHO * 0.85: break
             tw = draw.textbbox((0, 0), texto.upper(), font=font)[2]
             th = draw.textbbox((0, 0), texto.upper(), font=font)[3]
             if estilo == "lower":
                 y = ALTO - 190
-                draw.rectangle([(ANCHO - tw) // 2 - 30, y - 20, (ANCHO + tw) // 2 + 30, y + th + 25], fill=(0, 0, 0, 170))
             else:
                 y = (ALTO - th) // 2
-                draw.rectangle([(ANCHO - tw) // 2 - 40, y - 30, (ANCHO + tw) // 2 + 40, y + th + 35], fill=(0, 0, 0, 180))
+            draw.rectangle([(ANCHO - tw) // 2 - 30, y - 20, (ANCHO + tw) // 2 + 30, y + th + 25], fill=(0, 0, 0, 170))
             draw.text(((ANCHO - tw) // 2, y), texto.upper(), font=font, fill=(255, 214, 102, 255))
             img = Image.alpha_composite(img, capa).convert("RGB")
             img.save(salida, "JPEG", quality=90)
@@ -311,11 +367,9 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
         return img_path
 
 def componer_producto_horizontal(url_producto, url_fondo, salida="img_producto_largo.jpg"):
-    """Producto recortado (rembg) sobre fondo bonito, en 16:9."""
     try:
         r = requests.get(url_fondo, timeout=20)
-        fondo = Image.open(io.BytesIO(r.content)).convert("RGB")
-        fondo = ImageOps.fit(fondo, (ANCHO, ALTO), Image.Resampling.LANCZOS)
+        fondo = ImageOps.fit(Image.open(io.BytesIO(r.content)).convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS)
         rp = requests.get(url_producto, timeout=20, verify=False)
         prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
         try:
@@ -324,11 +378,9 @@ def componer_producto_horizontal(url_producto, url_fondo, salida="img_producto_l
         except Exception as e:
             print(f"   ⚠️ rembg falló ({e}), usando imagen original")
         th = int(ALTO * 0.75)
-        ratio = th / prod.height
-        prod = prod.resize((int(prod.width * ratio), th), Image.Resampling.LANCZOS)
+        prod = prod.resize((int(prod.width * (th / prod.height)), th), Image.Resampling.LANCZOS)
         sombra = prod.copy().filter(ImageFilter.GaussianBlur(radius=25))
-        x = ANCHO - prod.width - 140
-        y = (ALTO - th) // 2
+        x, y = ANCHO - prod.width - 140, (ALTO - th) // 2
         fondo.paste(sombra, (x - 12, y - 12), sombra)
         fondo.paste(prod, (x, y), prod)
         fondo.save(salida, "JPEG", quality=90)
@@ -338,7 +390,6 @@ def componer_producto_horizontal(url_producto, url_fondo, salida="img_producto_l
         return None
 
 def crear_overlay_cta(salida="cta_overlay.png"):
-    """Overlay transparente con 'CONTACTOS EN LA DESCRIPCIÓN' para los últimos 15s."""
     try:
         img = Image.new("RGBA", (ANCHO, ALTO), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
@@ -354,7 +405,7 @@ def crear_overlay_cta(salida="cta_overlay.png"):
         return None
 
 # ================================================================
-# 🎬 EFECTO KEN BURNS (ZOOM LENTO LIMPIO, TAMAÑO CONSTANTE)
+# 🎬 KEN BURNS LIMPIO (TAMAÑO CONSTANTE)
 # ================================================================
 def efecto_ken_burns(img_path, duracion, direccion="in"):
     clip = ImageClip(img_path).set_duration(duracion)
@@ -373,13 +424,12 @@ def efecto_ken_burns(img_path, duracion, direccion="in"):
 # ================================================================
 # 🎥 MONTAR VIDEO LARGO
 # ================================================================
-def montar_video_largo(segmentos_img, voz, salida="largo_final.mp4"):
+def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     clips_video, clips_audio = [], []
     for i, seg in enumerate(segmentos_img):
         audio = AudioFileClip(seg["audio_path"])
         dur = audio.duration + (PAUSA_ENTRE_SEGMENTOS if i < len(segmentos_img) - 1 else 0)
-        direccion = "in" if i % 2 == 0 else "out"
-        vc = efecto_ken_burns(seg["img_path"], dur, direccion)
+        vc = efecto_ken_burns(seg["img_path"], dur, "in" if i % 2 == 0 else "out")
         clips_video.append(vc)
         clips_audio.append(audio)
         if i < len(segmentos_img) - 1:
@@ -389,7 +439,6 @@ def montar_video_largo(segmentos_img, voz, salida="largo_final.mp4"):
     video = concatenate_videoclips(clips_video, method="compose")
     duracion_total = audio_narracion.duration
 
-    # 🎵 Música de fondo con fallback
     musicas = [f for f in os.listdir(".") if f.lower().endswith(".mp3") and not f.startswith(("seg", "test", "audio")) and os.path.getsize(f) > 100]
     audio_final = audio_narracion
     for m in musicas:
@@ -406,11 +455,9 @@ def montar_video_largo(segmentos_img, voz, salida="largo_final.mp4"):
 
     video = video.set_audio(audio_final)
 
-    # 📲 Overlay CTA últimos 15 segundos
     overlay = crear_overlay_cta()
     if overlay:
-        cta_clip = (ImageClip(overlay, transparent=True)
-                    .set_start(max(duracion_total - 15, 0)).set_duration(15))
+        cta_clip = ImageClip(overlay, transparent=True).set_start(max(duracion_total - 15, 0)).set_duration(15)
         video = CompositeVideoClip([video, cta_clip], size=(ANCHO, ALTO))
 
     print("🎬 Renderizando video largo (puede tardar varios minutos)...")
@@ -419,32 +466,28 @@ def montar_video_largo(segmentos_img, voz, salida="largo_final.mp4"):
     return salida
 
 # ================================================================
-# 🖼️ MINIATURA HORIZONTAL 1280x720 (CTR ÉLITE)
+# 🖼️ MINIATURA HORIZONTAL 1280x720
 # ================================================================
 def crear_miniatura_larga(img_base, url_producto, texto, salida="thumb_largo.jpg"):
     try:
         with Image.open(img_base) as bg:
             bg = ImageOps.fit(bg.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS)
-            bg = ImageEnhance.Contrast(bg).enhance(1.25)
-            bg = bg.convert("RGBA")
+            bg = ImageEnhance.Contrast(bg).enhance(1.25).convert("RGBA")
             capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
             d = ImageDraw.Draw(capa)
             d.rectangle([(0, 0), (760, 720)], fill=(0, 0, 0, 150))
-            # Texto en 2-3 líneas
             palabras = texto.upper().split()
             lineas, actual = [], ""
             for p in palabras:
                 if len(actual + " " + p) > 22: lineas.append(actual); actual = p
                 else: actual = (actual + " " + p).strip()
             if actual: lineas.append(actual)
-            lineas = lineas[:3]
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
             y = 180
-            for ln in lineas:
+            for ln in lineas[:3]:
                 d.text((60, y), ln, font=font, fill=(255, 214, 102, 255))
                 y += 86
             bg = Image.alpha_composite(bg, capa)
-            # Producto a la derecha
             try:
                 rp = requests.get(url_producto, timeout=20, verify=False)
                 prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
@@ -462,7 +505,7 @@ def crear_miniatura_larga(img_base, url_producto, texto, salida="thumb_largo.jpg
         return None
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE (VIDEO LARGO HORIZONTAL)
+# 📤 SUBIR A YOUTUBE
 # ================================================================
 def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto, ingrediente):
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -491,28 +534,18 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 🔗 Canal: {CANAL_LINK}
 📘 Facebook: {FACEBOOK_LINK}
 
-#{ingrediente.replace(' ', '')} #SaludNatural #Herbolaria #MedicinaNatural #Bienestar #ShortsNo"""
+#{ingrediente.replace(' ', '')} #SaludNatural #Herbolaria #MedicinaNatural #Bienestar"""
 
     if ACTIVAR_DISCLOSURE_IA: descripcion += DISCLOSURE_TEXT
 
     body = {
-        "snippet": {
-            "title": titulo[:100],
-            "description": descripcion[:5000],
-            "tags": [t.strip() for t in tags_str.split(",") if t.strip()][:15],
-            "categoryId": "26",
-            "defaultLanguage": "es",
-            "defaultAudioLanguage": "es",
-        },
-        "status": {
-            "privacyStatus": "public",
-            "selfDeclaredMadeForKids": False,
-            "containsSyntheticMedia": True,
-        },
+        "snippet": {"title": titulo[:100], "description": descripcion[:5000],
+                    "tags": [t.strip() for t in tags_str.split(",") if t.strip()][:15],
+                    "categoryId": "26", "defaultLanguage": "es", "defaultAudioLanguage": "es"},
+        "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True},
     }
     media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
-    request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
-    response = request.execute()
+    response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
     video_id = response["id"]
     print(f"✅ Video largo subido: https://youtu.be/{video_id}")
 
@@ -537,16 +570,17 @@ def main():
         guardar_estado(estado)
         sys.exit(0)
 
-    producto = seleccionar_producto_largo()
-    print(f"📦 Producto: {producto['nombre']}")
+    producto, ingrediente = seleccionar_producto_e_ingrediente_largo()
+    tema_viral = max(TEMAS_VIRALES_SALUD, key=lambda x: x.get("ctr_potencial", 0) * random.uniform(0.8, 1.2))
+    print(f"📦 Producto: {producto['nombre']} | 🌱 Ingrediente: {ingrediente} | 🎯 Tema: {tema_viral['tema']}")
 
-    guion = ia_genera_guion_largo(producto)
-    ingrediente = guion.get("ingrediente_elegido", "hierba medicinal")
+    guion = ia_genera_guion_largo(producto, ingrediente, tema_viral)
+    ingrediente_hablado = guion.get("ingrediente_real", ingrediente)
     voz = validar_voz()
 
     orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
     segmentos_img = []
-    url_fondo_producto = buscar_imagen_pexels_horizontal(guion["segmentos"]["producto"].get("query_pexels", f"{ingrediente} natural")) or \
+    url_fondo_producto = buscar_imagen_pexels_horizontal(guion["segmentos"]["producto"].get("query_pexels", f"{ingrediente_hablado} natural")) or \
                          "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop"
 
     for i, clave in enumerate(orden):
@@ -555,16 +589,14 @@ def main():
         img_path = f"img_largo_{i}.jpg"
 
         if clave in ("producto", "cta"):
-            comp = componer_producto_horizontal(producto["imagen_url"], url_fondo_producto, img_path)
-            if not comp:
+            if not componer_producto_horizontal(producto["imagen_url"], url_fondo_producto, img_path):
                 descargar_imagen(url_fondo_producto, img_path)
         else:
-            url_img = buscar_imagen_pexels_horizontal(seg.get("query_pexels", f"{ingrediente} plant natural"))
+            url_img = buscar_imagen_pexels_horizontal(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"))
             if not url_img:
                 url_img = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop"
             descargar_imagen(url_img, img_path)
 
-        # Texto en pantalla (excepto hook que lleva texto centrado grande)
         tp = seg.get("texto_pantalla", "")
         if tp:
             img_path = quemar_texto_pantalla(img_path, tp, img_path, estilo="center" if clave == "hook" else "lower")
@@ -575,14 +607,12 @@ def main():
             sys.exit(1)
         segmentos_img.append({"img_path": img_path, "audio_path": audio_path})
 
-    video_path = montar_video_largo(segmentos_img, voz)
-
+    video_path = montar_video_largo(segmentos_img)
     thumb = crear_miniatura_larga("img_largo_2.jpg", producto["imagen_url"], guion["titulo"])
-
     video_id = subir_video_largo(video_path, thumb, guion["titulo"], guion["tags"],
-                                 guion["gancho_descripcion"], guion["contexto_descripcion"], ingrediente)
+                                 guion["gancho_descripcion"], guion["contexto_descripcion"], ingrediente_hablado)
 
-    guardar_producto_usado(producto["nombre"])
+    guardar_ingrediente_largo_usado(ingrediente, producto["nombre"])   # ✅ clave = par del Excel
     guardar_titulo(guion["titulo"])
     estado["publicaciones_hoy"] = estado.get("publicaciones_hoy", 0) + 1
     estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
