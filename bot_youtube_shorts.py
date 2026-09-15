@@ -18,11 +18,12 @@ from moviepy.editor import (
     concatenate_audioclips,
     concatenate_videoclips,
 )
-from PIL import Image, ImageFilter
+from PIL import Image, ImageFilter, ImageOps
 import requests
 import edge_tts
 import pytz
 import urllib3
+from rembg import remove  # ✅ LIBRERÍA PARA RECORTAR FONDOS AUTOMÁTICAMENTE
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -214,7 +215,7 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(5)
 
 # ================================================================
-# 🖼️ IMÁGENES Y VIDEO
+# 🖼️ IMÁGENES Y VIDEO CON PRODUCTO RECORTADO (EFECTO ESTUDIO)
 # ================================================================
 def buscar_imagen_pexels_salud(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -240,8 +241,8 @@ async def generar_audio(texto, path):
         print(f"⚠️ Error audio: {e}")
         return None
 
-def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
-    print("🎬 Renderizando video con 2 imágenes (Zoom lento)...")
+def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingrediente):
+    print("🎬 Renderizando video con 2 escenas (Zoom lento + Producto Recortado)...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     audio1 = loop.run_until_complete(generar_audio(guion["guion_segmento_1"], "seg1.mp3"))
@@ -257,6 +258,9 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     
     clips_video = []
     
+    # ==========================================
+    # ESCENA 1: Ingrediente (0-25s)
+    # ==========================================
     try:
         r = requests.get(url_ingrediente, timeout=15)
         img = Image.open(io.BytesIO(r.content)).convert("RGB").resize((1080, 1920))
@@ -265,37 +269,71 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
         video_ingrediente = ImageClip("temp_ingrediente.jpg").set_duration(duracion_seg1)
         video_ingrediente = video_ingrediente.resize(lambda t: 1 + 0.03 * (t / duracion_seg1))
         clips_video.append(video_ingrediente)
-        print("✅ Imagen del ingrediente cargada")
+        print("✅ Escena 1: Imagen del ingrediente cargada")
     except Exception as e:
         print(f"⚠️ Error con imagen de ingrediente: {e}")
     
+    # ==========================================
+    # ESCENA 2: Producto RECORTADO sobre Fondo Bonito (25-45s)
+    # ==========================================
     try:
-        r = requests.get(url_producto, timeout=15, verify=False)
-        img = Image.open(io.BytesIO(r.content))
+        print("   🎨 Preparando escena del producto recortado...")
+        # 1. Buscar fondo bonito para el producto
+        url_fondo = buscar_imagen_pexels_salud(f"{ingrediente} natural healthy background")
+        r_fondo = requests.get(url_fondo, timeout=15)
+        fondo = Image.open(io.BytesIO(r_fondo.content)).convert("RGB").resize((1080, 1920))
         
-        if img.mode == 'RGBA':
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[3])
-            img = background
-        elif img.mode != 'RGB':
-            img = img.convert('RGB')
+        # 2. Descargar la imagen del producto
+        r_prod = requests.get(url_producto, timeout=15, verify=False)
+        img_prod_original = Image.open(io.BytesIO(r_prod.content)).convert("RGBA")
         
-        img = img.resize((1080, 1920))
-        img.save("temp_producto.jpg")
+        # 3. ✂️ RECORTAR EL FONDO DEL PRODUCTO (IA)
+        print("   ✂️ Eliminando fondo del producto automáticamente...")
+        img_prod_sin_fondo = remove(img_prod_original)
         
-        video_producto = ImageClip("temp_producto.jpg").set_duration(duracion_seg2)
+        # 4. Redimensionar producto para que se vea elegante (45% de la altura)
+        target_h = int(1920 * 0.45)
+        ratio = target_h / img_prod_sin_fondo.height
+        nuevo_w = int(img_prod_sin_fondo.width * ratio)
+        img_prod_resized = img_prod_sin_fondo.resize((nuevo_w, target_h), Image.Resampling.LANCZOS)
+        
+        # 5. Crear una sombra suave realista para dar efecto 3D
+        sombra = img_prod_resized.copy().filter(ImageFilter.GaussianBlur(radius=30))
+        
+        # 6. Calcular posición (centrado, en el tercio inferior)
+        x = (1080 - img_prod_resized.width) // 2
+        y = int(1920 * 0.55)
+        
+        # 7. Componer: Fondo -> Sombra -> Producto Recortado
+        fondo.paste(sombra, (x - 15, y - 15), sombra)
+        fondo.paste(img_prod_resized, (x, y), img_prod_resized)
+        fondo.save("temp_producto_compuesto.jpg")
+        
+        video_producto = ImageClip("temp_producto_compuesto.jpg").set_duration(duracion_seg2)
         video_producto = video_producto.resize(lambda t: 1 + 0.03 * (t / duracion_seg2))
         clips_video.append(video_producto)
-        print("✅ Imagen del producto cargada")
+        print("✅ Escena 2: Producto recortado sobre fondo profesional cargado")
     except Exception as e:
-        print(f"⚠️ Error con imagen de producto: {e}")
+        print(f"⚠️ Error componiendo producto: {e}. Usando imagen original.")
+        # Fallback por si rembg falla
+        try:
+            r_prod = requests.get(url_producto, timeout=15, verify=False)
+            img = Image.open(io.BytesIO(r_prod.content)).convert("RGB").resize((1080, 1920))
+            img.save("temp_producto_fallback.jpg")
+            video_producto = ImageClip("temp_producto_fallback.jpg").set_duration(duracion_seg2)
+            video_producto = video_producto.resize(lambda t: 1 + 0.03 * (t / duracion_seg2))
+            clips_video.append(video_producto)
+        except:
+            pass
     
     if not clips_video:
         print("❌ No se pudieron cargar las imágenes")
         return None
     
+    # Unir videos
     video_final = concatenate_videoclips(clips_video, method="compose")
     
+    # 🛡️ BLINDAJE ANTI-FALLOS DE MÚSICA
     musicas = [f for f in os.listdir(".") if f.endswith(".mp3") and os.path.getsize(f) > 5000 and not f.startswith("seg")]
     musica_aplicada = False
     if musicas:
@@ -316,13 +354,13 @@ def crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto):
     
     video_final.write_videofile("short_final.mp4", fps=24, codec="libx264", audio_codec="aac", verbose=False, logger=None)
     
-    for f in ["seg1.mp3", "seg2.mp3", "temp_ingrediente.jpg", "temp_producto.jpg"]:
+    for f in ["seg1.mp3", "seg2.mp3", "temp_ingrediente.jpg", "temp_producto_compuesto.jpg", "temp_producto_fallback.jpg"]:
         if os.path.exists(f): os.remove(f)
     
     return "short_final.mp4"
 
 # ================================================================
-#  SUBIR A YOUTUBE (CON DESCRIPCIÓN ACTUALIZADA)
+# 📤 SUBIR A YOUTUBE
 # ================================================================
 def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, contexto, ingrediente):
     try:
@@ -332,7 +370,6 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         print(f"❌ Error autenticando YouTube: {e}")
         return None
     
-    # ✅ DESCRIPCIÓN ACTUALIZADA: Sin envíos ni formas de pago, con CTA claro
     descripcion = f"""{gancho}
 
 {contexto}
@@ -367,7 +404,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # ================================================================
 def main():
     print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts")
-    print(f" {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']}")
     
     estado = cargar_estado()
@@ -397,7 +434,7 @@ def main():
     
     url_producto = producto["imagen_url"]
     
-    video_path = crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto)
+    video_path = crear_video_con_dos_imagenes(guion, url_ingrediente, url_producto, ingrediente)
     if not video_path:
         print("❌ Error creando video")
         sys.exit(1)
