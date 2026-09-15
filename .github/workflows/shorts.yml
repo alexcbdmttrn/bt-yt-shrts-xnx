@@ -2,8 +2,8 @@ name: YouTube Shorts - Bot Herbolaria
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # Cada 4 horas (6 veces al día). El bot decide si publicar.
-  workflow_dispatch:
+    - cron: '0 */4 * * *'  # Cada 4 horas
+  workflow_dispatch:       # Ejecución manual
 
 permissions:
   contents: write
@@ -20,14 +20,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Caché de dependencias pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
@@ -42,4 +34,5 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Actualizar estado herbolaria [skip ci]"
-          file_pattern: "estado_herbolaria.json ingredientes_usados.json titulos_publicados.json analytics_herbolaria.json temas_herbolaria_usados.json"
+          # ✅ CORREGIDO: Nombres exactos de los archivos que genera el bot
+          file_pattern: "estado_herbolaria.json ingredientes_usados.json titulos_herbolaria_publicados.json analytics_herbolaria.json"
