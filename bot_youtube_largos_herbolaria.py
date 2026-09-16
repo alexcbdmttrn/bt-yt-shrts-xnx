@@ -36,12 +36,10 @@ TELEGRAM_BOT = "@alex_xanax_bot"
 CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
 FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
-# ✅ Estado PROPIO del bot de largos (no choca con el de Shorts)
 ESTADO_FILE = "estado_largos_herbolaria.json"
-INGREDIENTES_LARGOS_FILE = "ingredientes_largos_usados.json"   # ✅ anti-repetición por INGREDIENTE (igual que Shorts)
+INGREDIENTES_LARGOS_FILE = "ingredientes_largos_usados.json"
 TITULOS_FILE = "titulos_largos_publicados.json"
 
-# ✅ MISMOS CATÁLOGOS QUE EL BOT DE SHORTS
 EXCEL_FILE = "catalogo_xanax.xlsx"
 CATALOGO_INGREDIENTES = "catalogo_ingredientes.json"
 CATALOGO_CURIOSIDADES = "catalogo_curiosidades_salud.json"
@@ -58,7 +56,7 @@ ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
 # ================================================================
-# 🌿 TEMAS VIRALES (LOS MISMOS DEL BOT DE SHORTS)
+# 🌿 TEMAS VIRALES
 # ================================================================
 TEMAS_VIRALES_SALUD = [
     {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas"], "ctr_potencial": 9.2},
@@ -69,7 +67,7 @@ TEMAS_VIRALES_SALUD = [
 ]
 
 # ================================================================
-# 🎤 VOCES (UNA POR VIDEO CON FALLBACK)
+# 🎤 VOCES
 # ================================================================
 VOCES_DISPONIBLES = [
     {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "estilo": "profesional"},
@@ -80,7 +78,7 @@ VOCES_DISPONIBLES = [
 ]
 
 # ================================================================
-# 🧠 ESTADO Y ANTI-REPETICIÓN (MISMA LÓGICA QUE SHORTS)
+# 🧠 ESTADO Y ANTI-REPETICIÓN
 # ================================================================
 def cargar_estado():
     try:
@@ -138,7 +136,7 @@ def deberia_publicar_ahora(estado):
     return True
 
 # ================================================================
-# 🌱 SELECCIÓN DE PRODUCTO + INGREDIENTE (ANTI-REPETICIÓN, IGUAL QUE SHORTS)
+# 🌱 SELECCIÓN DE PRODUCTO + INGREDIENTE
 # ================================================================
 def seleccionar_producto_e_ingrediente_largo():
     df = pd.read_excel(EXCEL_FILE, sheet_name="Productos")
@@ -150,7 +148,7 @@ def seleccionar_producto_e_ingrediente_largo():
         producto = df.sample(1).iloc[0].to_dict()
         ingredientes = [i.strip() for i in str(producto["ingredientes_clave"]).split(",") if i.strip()]
         if not ingredientes: continue
-        ingrediente = random.choice(ingredientes)   # ✅ aleatorio, no siempre el primero
+        ingrediente = random.choice(ingredientes)
         if f"{ingrediente}|{producto['nombre']}" not in usados:
             print(f"✅ Par elegido: {ingrediente} → {producto['nombre']}")
             return producto, ingrediente
@@ -162,7 +160,7 @@ def seleccionar_producto_e_ingrediente_largo():
     return producto, random.choice(ingredientes)
 
 # ================================================================
-# 📚 LECTURA DE LOS JSON (FICHA DE INGREDIENTE + CURIOSIDAD)
+# 📚 CATÁLOGOS
 # ================================================================
 def cargar_json_catalogo(ruta):
     try:
@@ -191,7 +189,7 @@ def obtener_curiosidad_catalogo(ingrediente):
     return f"{elegida.get('titulo', '')} {elegida.get('dato_curioso', '')}".strip()
 
 # ================================================================
-# 🤖 IA GENERA GUION DE 5 MIN (8 SEGMENTOS) CON CATÁLOGOS Y TEMA
+# 🤖 IA GENERA GUION
 # ================================================================
 def ia_genera_guion_largo(producto, ingrediente, tema_viral):
     info_catalogo = obtener_info_ingrediente_catalogo(ingrediente) or "Sin ficha en catálogo; usa conocimiento general verificado."
@@ -278,7 +276,7 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(8)
 
 # ================================================================
-# 🎤 VOZ CON FALLBACK (UNA POR VIDEO)
+# 🎤 VOZ CON FALLBACK
 # ================================================================
 def validar_voz():
     for voz in VOCES_DISPONIBLES:
@@ -309,7 +307,7 @@ def generar_audio(texto, path, voz):
     return None
 
 # ================================================================
-# 🖼️ IMÁGENES HORIZONTALES + TEXTO + PRODUCTO RECORTADO
+# 🖼️ IMÁGENES
 # ================================================================
 def buscar_imagen_pexels_horizontal(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -405,24 +403,35 @@ def crear_overlay_cta(salida="cta_overlay.png"):
         return None
 
 # ================================================================
-# 🎬 KEN BURNS LIMPIO (TAMAÑO CONSTANTE)
+# 🎬 KEN BURNS CORREGIDO (COMPATIBLE CON MOVIEPY 1.0.3)
 # ================================================================
 def efecto_ken_burns(img_path, duracion, direccion="in"):
+    """Efecto Ken Burns compatible con moviepy 1.0.3"""
     clip = ImageClip(img_path).set_duration(duracion)
-    clip = clip.resize(width=int(ANCHO * 1.25), height=int(ALTO * 1.25))
-    W, H = clip.size
-    def coords(t):
-        p = min(max(t / duracion, 0.0), 1.0)
-        scale = (1.25 - 0.25 * p) if direccion == "in" else (1.0 + 0.25 * p)
-        w, h = int(ANCHO * scale), int(ALTO * scale)
-        x, y = (W - w) // 2, (H - h) // 2
-        return x, y, x + w, y + h
-    clip = clip.crop(x1=lambda t: coords(t)[0], y1=lambda t: coords(t)[1],
-                     x2=lambda t: coords(t)[2], y2=lambda t: coords(t)[3])
-    return clip.resize((ANCHO, ALTO))
+    
+    # Aplicar zoom progresivo usando resize() con función lambda
+    if direccion == "in":
+        # Zoom in: de 1.0 a 1.25
+        clip = clip.resize(lambda t: 1.0 + 0.25 * (t / duracion))
+    else:
+        # Zoom out: de 1.25 a 1.0
+        clip = clip.resize(lambda t: 1.25 - 0.25 * (t / duracion))
+    
+    # Recortar al tamaño final usando fl_image
+    def crop_center(frame):
+        h, w = frame.shape[:2]
+        target_w, target_h = ANCHO, ALTO
+        x1 = max(0, (w - target_w) // 2)
+        y1 = max(0, (h - target_h) // 2)
+        x2 = min(w, x1 + target_w)
+        y2 = min(h, y1 + target_h)
+        return frame[y1:y2, x1:x2]
+    
+    clip = clip.fl_image(crop_center)
+    return clip
 
 # ================================================================
-# 🎥 MONTAR VIDEO LARGO
+# 🎥 MONTAR VIDEO
 # ================================================================
 def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     clips_video, clips_audio = [], []
@@ -466,7 +475,7 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     return salida
 
 # ================================================================
-# 🖼️ MINIATURA HORIZONTAL 1280x720
+# 🖼️ MINIATURA
 # ================================================================
 def crear_miniatura_larga(img_base, url_producto, texto, salida="thumb_largo.jpg"):
     try:
@@ -612,7 +621,7 @@ def main():
     video_id = subir_video_largo(video_path, thumb, guion["titulo"], guion["tags"],
                                  guion["gancho_descripcion"], guion["contexto_descripcion"], ingrediente_hablado)
 
-    guardar_ingrediente_largo_usado(ingrediente, producto["nombre"])   # ✅ clave = par del Excel
+    guardar_ingrediente_largo_usado(ingrediente, producto["nombre"])
     guardar_titulo(guion["titulo"])
     estado["publicaciones_hoy"] = estado.get("publicaciones_hoy", 0) + 1
     estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
