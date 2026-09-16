@@ -14,6 +14,7 @@ from googleapiclient.http import MediaFileUpload
 from moviepy.editor import (
     AudioFileClip, CompositeAudioClip, ImageClip,
     concatenate_audioclips, concatenate_videoclips, AudioClip,
+    CompositeVideoClip,  # ✅ CORREGIDO: faltaba este import
 )
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 import requests
@@ -406,18 +407,11 @@ def crear_overlay_cta(salida="cta_overlay.png"):
 # 🎬 KEN BURNS CORREGIDO (COMPATIBLE CON MOVIEPY 1.0.3)
 # ================================================================
 def efecto_ken_burns(img_path, duracion, direccion="in"):
-    """Efecto Ken Burns compatible con moviepy 1.0.3"""
     clip = ImageClip(img_path).set_duration(duracion)
-    
-    # Aplicar zoom progresivo usando resize() con función lambda
     if direccion == "in":
-        # Zoom in: de 1.0 a 1.25
         clip = clip.resize(lambda t: 1.0 + 0.25 * (t / duracion))
     else:
-        # Zoom out: de 1.25 a 1.0
         clip = clip.resize(lambda t: 1.25 - 0.25 * (t / duracion))
-    
-    # Recortar al tamaño final usando fl_image
     def crop_center(frame):
         h, w = frame.shape[:2]
         target_w, target_h = ANCHO, ALTO
@@ -426,7 +420,6 @@ def efecto_ken_burns(img_path, duracion, direccion="in"):
         x2 = min(w, x1 + target_w)
         y2 = min(h, y1 + target_h)
         return frame[y1:y2, x1:x2]
-    
     clip = clip.fl_image(crop_center)
     return clip
 
@@ -464,6 +457,7 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
 
     video = video.set_audio(audio_final)
 
+    # ✅ CompositeVideoClip ya está importado correctamente
     overlay = crear_overlay_cta()
     if overlay:
         cta_clip = ImageClip(overlay, transparent=True).set_start(max(duracion_total - 15, 0)).set_duration(15)
