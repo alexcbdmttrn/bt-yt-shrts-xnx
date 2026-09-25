@@ -2,9 +2,13 @@ name: YouTube LARGOS - Bot Herbolaria
 
 on:
   schedule:
-    # Revisa cada 12 horas; el bot decide si publicar según intervalo (20-26h entre videos)
-    - cron: '0 */12 * * *'
-  workflow_dispatch:          # Ejecución manual para pruebas
+    # 15,17,19,21 UTC = 9:00, 11:00, 13:00, 15:00 CDMX (México ya no usa horario de verano)
+    - cron: '0 15,17,19,21 * * *'
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: 'Forzar publicación fuera de ventana (1 = sí, solo pruebas)'
+        default: '0'
 
 permissions:
   contents: write
@@ -12,8 +16,10 @@ permissions:
 jobs:
   publicar-largo:
     runs-on: ubuntu-latest
-    timeout-minutes: 45       # ⚠️ Videos largos tardan 5-15 min en renderizar
-
+    timeout-minutes: 45
+    env:
+      FORZAR_PUBLICACION: ${{ github.event.inputs.forzar || '0' }}
+      
     steps:
       - name: Checkout repositorio
         uses: actions/checkout@v4
@@ -37,5 +43,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Actualizar estado largos [skip ci]"
-          # ✅ SOLO los archivos PROPIOS del bot de largos
           file_pattern: "estado_largos_herbolaria.json ingredientes_largos_usados.json titulos_largos_publicados.json"
