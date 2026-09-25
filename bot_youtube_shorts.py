@@ -57,13 +57,101 @@ DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e 
 HORA_MIN_PUBLICAR = 9
 HORA_MAX_PUBLICAR = 17
 
-# 🛡️ TÍTULOS SEGUROS (política de salud de YouTube)
+# 🛡️ LISTA AMPLIADA DE PALABRAS PROHIBIDAS (Política de salud de YouTube)
 PALABRAS_PROHIBIDAS_TITULO = [
-    "cura", "milagrosa", "milagroso", "milagro", "científicamente comprobado",
-    "cientificamente comprobado", "comprobado científicamente", "sana", "sanar",
-    "elimina para siempre", "garantizado", "reemplaza", "sustituye tu tratamiento",
-    "adiós definitivo", "100% efectivo", "solución", "elimina", "adiós",
-    "eterna juventud", "limpiar tu cuerpo",
+    # ─────────── 1. CLAIMS DE CURACIÓN ───────────
+    "cura", "curar", "cura milagrosa", "curación",
+    "milagrosa", "milagroso", "milagro", "milagros",
+    "sana", "sanar", "sanación", "sanarlo", "sanarte",
+    "erradica", "erradicar",
+    "desaparece por completo", "desaparecer por completo",
+    "remedio definitivo", "tratamiento definitivo",
+    "fin del", "fin de", "termina con", "acaba con",
+    "adiós al", "adiós definitivo", "adiós para siempre",
+    "nunca más", "para siempre",
+    "de raíz", "desde la raíz", "elimina de raíz",
+
+    # ─────────── 2. CLAIMS MÉDICOS NO VERIFICADOS ───────────
+    "científicamente comprobado", "cientificamente comprobado",
+    "comprobado científicamente", "comprobado cientificamente",
+    "clínicamente probado", "clinicamente probado",
+    "avalado por médicos", "aprobado por médicos",
+    "recomendado por médicos", "avalado por doctores",
+    "aprobado por la FDA", "aprobado por fda",
+    "respaldado por estudios", "estudios lo confirman",
+    "eficacia probada", "efectividad probada",
+    "funciona siempre", "sin fallar", "sin excepciones",
+    "100% efectivo", "100 % efectivo", "cien por ciento efectivo",
+    "garantizado", "garantía de resultados",
+    "revolucionario", "breakthrough", "descubrimiento médico",
+    "innovación médica", "patentado médicamente",
+
+    # ─────────── 3. REEMPLAZO DE TRATAMIENTO MÉDICO ───────────
+    "reemplaza", "reemplaza medicamentos", "reemplaza tu tratamiento",
+    "sustituye", "sustituye medicamentos", "sustituye tu tratamiento",
+    "no necesitas médico", "sin ir al médico", "olvida al doctor",
+    "mejor que las pastillas", "mejor que los medicamentos",
+    "olvida la medicina", "tira tus pastillas", "deja tu tratamiento",
+    "sin fármacos", "sin medicamentos", "sin receta médica",
+    "alternativa a medicamentos", "en vez de medicamentos",
+
+    # ─────────── 4. PROMESAS DE TIEMPO ESPECÍFICO ───────────
+    "en 24 horas", "en un día", "hoy mismo",
+    "en 3 días", "en tres días",
+    "en 7 días", "en una semana", "en siete días",
+    "en un mes", "en 30 días",
+    "esta noche", "mañana mismo",
+    "al instante", "inmediatamente", "instantáneo", "instantanea",
+    "resultados inmediatos", "efecto inmediato",
+    "rápido y fácil", "exprés", "express",
+
+    # ─────────── 5. SENSACIONALISMO / MIEDO ───────────
+    "peligroso", "peligrosa",
+    "mortal", "mortales",
+    "asesino silencioso", "asesina silenciosa",
+    "te está matando", "te mata", "te matará",
+    "veneno", "tóxico", "toxina mortal",
+    "muerte", "fatal", "terminal",
+    "urgente", "emergencia", "alerta roja",
+    "impactante", "shock", "shocking",
+    "revelación", "revelador",
+    "increíble", "asombroso", "alucinante",
+    "conspiración", "lo que te ocultan", "la verdad oculta",
+    "ellos no quieren que sepas", "te mienten",
+
+    # ─────────── 6. TRANSFORMACIÓN EXTREMA / PESO ───────────
+    "transforma tu cuerpo", "transforma tu vida",
+    "cambia tu vida", "nuevo tú", "nueva tú",
+    "antes y después", "resultados increíbles",
+    "pierde 10 kilos", "baja 10 kilos", "pierde peso rápido",
+    "quema grasa milagrosa", "quema grasa express",
+    "derrite la grasa", "elimina grasa localizada",
+    "adelgaza sin dieta", "sin dieta", "sin ejercicio",
+    "sin esfuerzo", "come lo que quieras",
+    "barriga plana", "abdomen plano en días",
+    "rejuvenece 20 años", "rejuvenece 10 años",
+    "eterna juventud", "juventud eterna", "inmortal",
+
+    # ─────────── 7. CLICKBAIT GENÉRICO ───────────
+    "no vas a creer", "no lo vas a creer",
+    "te sorprenderá", "te dejará impactado",
+    "quedarás impactado", "quedarás asombrado",
+    "brutal", "bestial",
+    "top", "los 10 mejores", "los 5 peores",
+    "lo que nadie dice", "lo que nadie sabe",
+    "el mejor del mundo", "el peor del mundo",
+    "definitivo", "perfecto",
+
+    # ─────────── 8. ENFERMEDADES GRAVES ───────────
+    "cáncer", "cancer", "tumor", "tumores",
+    "VIH", "SIDA", "sida",
+    "alzheimer", "parkinson", "esclerosis",
+    "leucemia", "infarto", "derrame cerebral",
+    "ictus", "metástasis",
+
+    # ─────────── 9. OTROS PROBLEMÁTICOS ───────────
+    "solución", "elimina",
+    "limpiar tu cuerpo", "limpieza total del cuerpo",
 ]
 
 FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -74,8 +162,8 @@ FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 TEMAS_VIRALES_SALUD = [
     {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales"], "busquedas": 850000, "ctr_potencial": 9.2, "retencion_objetivo": 78, "tendencia": "creciente"},
     {"tema": "remedio_casero", "keywords_cortas": ["remedio casero", "natural", "tradicional"], "keywords_largas": ["remedios caseros", "tratamiento natural"], "busquedas": 920000, "ctr_potencial": 8.8, "retencion_objetivo": 75, "tendencia": "estable"},
-    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "comprobado"], "keywords_largas": ["estudios científicos", "evidencia científica"], "busquedas": 680000, "ctr_potencial": 10.5, "retencion_objetivo": 82, "tendencia": "explosiva"},
-    {"tema": "alivio_natural", "keywords_cortas": ["alivio natural", "bienestar", "tradición"], "keywords_largas": ["alivio natural efectivo", "remedio tradicional mexicano"], "busquedas": 750000, "ctr_potencial": 10.8, "retencion_objetivo": 80, "tendencia": "creciente"},
+    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "evidencia"], "keywords_largas": ["estudios sobre hierbas", "evidencia tradicional"], "busquedas": 680000, "ctr_potencial": 10.5, "retencion_objetivo": 82, "tendencia": "explosiva"},
+    {"tema": "alivio_natural", "keywords_cortas": ["alivio natural", "bienestar", "tradición"], "keywords_largas": ["alivio natural tradicional", "remedio mexicano"], "busquedas": 750000, "ctr_potencial": 10.8, "retencion_objetivo": 80, "tendencia": "creciente"},
     {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "tradicional"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional"], "busquedas": 540000, "ctr_potencial": 9.8, "retencion_objetivo": 77, "tendencia": "creciente"},
 ]
 
@@ -130,7 +218,7 @@ FORMULAS_TITULOS_ELITE = {
 }
 
 # ================================================================
-# 🎤 VOCES NEURALES PREMIUM - MÁS ARTICULADAS
+# 🎤 VOCES NEURALES PREMIUM
 # ================================================================
 VOCES_DISPONIBLES = [
     {"voz": "es-MX-DaliaNeural", "velocidad": "+10%", "tono": "+1Hz", "estilo": "claro"},
@@ -184,7 +272,7 @@ def seleccionar_producto_aleatorio():
         if producto_nombre not in [u.split("|")[1] for u in usados]:
             return producto
 
-    print(" Todos los productos usados. Reiniciando historial...")
+    print("🔄 Todos los productos usados. Reiniciando historial...")
     with open(INGREDIENTES_USADOS_FILE, "w", encoding="utf-8") as f:
         json.dump({"ingredientes": [], "fecha_reinicio": datetime.now().date().isoformat()}, f)
 
@@ -212,8 +300,9 @@ def sanitizar_titulo(titulo, ingrediente):
             f"{ingrediente}: lo que tu abuela ya sabía de esta planta",
             f"El papel del {ingrediente} en tu bienestar diario",
             f"¿Sabías esto del {ingrediente}?",
-            f"{ingrediente}: beneficios que ignorabas",
-            f"Por qué funciona el {ingrediente}",
+            f"{ingrediente}: el aliado tradicional que vale la pena conocer",
+            f"Por qué la herbolaria mexicana usa el {ingrediente}",
+            f"{ingrediente}: usos y beneficios en la tradición natural",
         ]
         nuevo = random.choice(plantillas)
         print(f"🛡️ Título con claim riesgoso detectado → reemplazado: {nuevo}")
@@ -260,8 +349,11 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 """
 
     tema_viral = random.choice(TEMAS_VIRALES_SALUD)
+    
+    # Lista de prohibidas formateada para el prompt
+    prohibidas_str = ", ".join(f'"{p}"' for p in PALABRAS_PROHIBIDAS_TITULO[:40]) + "..."
 
-    prompt = f"""Eres un experto en herbolaria, nutrición y SEO para YouTube Shorts creando contenido VIRAL.
+    prompt = f"""Eres un experto en herbolaria, nutrición y SEO para YouTube Shorts creando contenido VIRAL y SEGURO.
 
 📦 INFORMACIÓN COMPLETA DEL PRODUCTO:
 {producto_info}
@@ -276,13 +368,13 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 
 {{
     "ingrediente_elegido": "Nombre real del ingrediente (ej: Piña, no Sabor Piña)",
-    "titulo": "Título viral corto con hashtags (máx 70 chars, usa fórmulas variadas y SEGURAS)",
-    "guion_segmento_1": "Texto de 25 segundos sobre el ingrediente (65-75 palabras). Inicia con pregunta impactante. Menciona 2-3 beneficios. NO menciones el producto ni contacto.",
+    "titulo": "Título viral corto con hashtags (máx 70 chars, usa fórmulas variadas y 100% SEGURAS)",
+    "guion_segmento_1": "Texto de 25 segundos sobre el ingrediente (65-75 palabras). Inicia con pregunta impactante. Menciona 2-3 beneficios según la tradición. NO menciones el producto ni contacto. Incluye frase: 'esto es información educativa basada en la tradición herbolaria'.",
     "guion_segmento_2": "Texto de 20 segundos presentando el producto (50-60 palabras). Menciona el nombre del producto y que contiene el ingrediente. DEBE terminar exactamente con: '¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp al número en la descripción, o a nuestro asesor inteligente de telegram'",
     "tags": "tag1, tag2, tag3 (10-15 tags incluyendo keywords: {', '.join(tema_viral['keywords_cortas'][:2])}, {', '.join(tema_viral['keywords_largas'][:1])})",
-    "descripcion_corta": "Descripción SEO del video (máx 120 caracteres)",
-    "gancho_descripcion": "Gancho inicial para descripción (máx 90 caracteres)",
-    "contexto_descripcion": "Contexto adicional (1 oración)",
+    "descripcion_corta": "Descripción SEO del video (máx 120 caracteres, sin claims médicos)",
+    "gancho_descripcion": "Gancho inicial para descripción (máx 90 caracteres, sin claims médicos)",
+    "contexto_descripcion": "Contexto adicional educativo (1 oración)",
     "query_pexels": "Query en inglés para buscar imagen del ingrediente en Pexels (ej: 'pineapple fruit fresh healthy')"
 }}
 
@@ -291,11 +383,32 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 - El Segmento 2 DEBE terminar con la frase exacta de contacto
 - El título debe incluir hashtags y ser variado (NO siempre "El secreto de...")
 - query_pexels debe ser en inglés y específico
+- El guion DEBE incluir un disclaimer natural como "esto es información educativa basada en la tradición herbolaria, no sustituye la consulta médica"
 
-TÍTULO SEGURO DE POLÍTICAS (CRÍTICO):
-- PROHIBIDO en el título: "cura", "milagrosa/milagroso", "científicamente comprobado", "sana/sanar", "elimina", "garantizado", "reemplaza medicamentos", "solución", "adiós", "eterna juventud", "limpiar tu cuerpo".
-- Usa marcos seguros: "apoya", "favorece", "contribuye al bienestar", "alivio", "uso tradicional", "beneficios", "por qué se usa", "aliado", "ayuda".
-- Ejemplos OK: "Aloe Vera: por qué la tradición lo usa en golpes", "¿Sabías esto del nopal?", "Cúrcuma: beneficios que ignorabas", "Por qué funciona la manzanilla".
+🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO — ESTO EVITA BANNEO DEL CANAL):
+NUNCA uses en TÍTULO, GUION, NI DESCRIPCIÓN ninguna de estas palabras o conceptos:
+{prohibidas_str}
+
+TAMPOCO uses:
+- Claims de curación absoluta ("cura", "sana", "elimina para siempre", "adiós a X", "milagrosa")
+- Promesas de tiempo ("en 7 días", "en 24 horas", "hoy mismo", "inmediatamente")
+- Reemplazo de tratamiento ("sustituye medicamentos", "mejor que pastillas", "sin ir al médico")
+- Claims médicos no verificados ("clínicamente probado", "avalado por la FDA", "100% efectivo")
+- Sensacionalismo ("peligroso", "mortal", "asesino silencioso", "conspiración")
+- Transformación extrema ("pierde 10 kilos", "rejuvenece 20 años", "eterna juventud")
+- Enfermedades graves en títulos (cáncer, VIH, alzheimer, parkinson)
+
+✅ MARCOS SEGUROS que SÍ debes usar:
+- "apoya", "favorece", "contribuye al bienestar", "alivia tradicionalmente"
+- "uso en la herbolaria", "la tradición popular indica", "según la medicina tradicional"
+- "aliado natural", "complemento para", "parte de un estilo de vida saludable"
+- "¿sabías que...?", "por qué se usa", "3 beneficios tradicionales"
+
+Ejemplos de TÍTULOS SEGUROS:
+- "Aloe Vera: por qué la tradición lo usa en golpes y moretones #aloe #herbolaria"
+- "¿Sabías esto del nopal? El aliado de tu abuela #nopal #saludnatural"
+- "Cúrcuma: beneficios que ignorabas según la herbolaria #curcuma #bienestar"
+- "Por qué funciona la manzanilla en la tradición mexicana #manzanilla #remedios"
 """
 
     for intento in range(6):
@@ -304,7 +417,7 @@ TÍTULO SEGURO DE POLÍTICAS (CRÍTICO):
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.85, "max_tokens": 1000, "response_format": {"type": "json_object"}}, timeout=90)
+                      "temperature": 0.85, "max_tokens": 1200, "response_format": {"type": "json_object"}}, timeout=90)
             r.raise_for_status()
             respuesta = r.json()["choices"][0]["message"]["content"].strip()
             respuesta = re.sub(r'`json\s*', '', respuesta).replace('`', '')
@@ -321,7 +434,7 @@ TÍTULO SEGURO DE POLÍTICAS (CRÍTICO):
 
             guion_seg2 = data.get("guion_segmento_2", "")
             if "asesor inteligente de telegram" not in guion_seg2.lower():
-                print("️ La IA no incluyó el CTA exacto. Agregándolo...")
+                print("⚠️ La IA no incluyó el CTA exacto. Agregándolo...")
                 cta_obligatorio = "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp al número en la descripción, o a nuestro asesor inteligente de telegram"
                 oraciones = re.split(r'(?<=[.!?])\s+', guion_seg2)
                 if len(oraciones) > 1:
@@ -350,14 +463,21 @@ TÍTULO SEGURO DE POLÍTICAS (CRÍTICO):
                 titulo = f"{titulo_base} {' '.join(hashtags[:2])}"
             data["titulo"] = titulo[:70]
 
-            tags_list = [t.strip() for t in data.get("tags", "").split(",") if t.strip()][:10]
-            for kw in tema_viral.get("keywords_cortas", [])[:2]:
-                if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
-            for kw in tema_viral.get("keywords_largas", [])[:2]:
-                if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
-            for ext in [ingrediente.lower(), "salud natural", "bienestar", "medicina natural"]:
-                if ext not in tags_list and len(tags_list) < 15: tags_list.append(ext)
-            data["tags"] = ", ".join(tags_list[:15])
+            # 🛡️ Sanitizar tags por si la IA mete palabras prohibidas
+            if "tags" in data and data["tags"]:
+                tags_lista = [t.strip() for t in data["tags"].split(",") if t.strip()]
+                tags_limpia = [t for t in tags_lista if not any(p in t.lower() for p in PALABRAS_PROHIBIDAS_TITULO)]
+                # Agregar keywords del tema si faltan
+                for kw in tema_viral.get("keywords_cortas", [])[:2]:
+                    if kw.lower() not in [t.lower() for t in tags_limpia]: tags_limpia.append(kw)
+                for kw in tema_viral.get("keywords_largas", [])[:1]:
+                    if kw.lower() not in [t.lower() for t in tags_limpia]: tags_limpia.append(kw)
+                for ext in [ingrediente.lower(), "salud natural", "bienestar", "herbolaria"]:
+                    if ext not in tags_limpia and len(tags_limpia) < 15: tags_limpia.append(ext)
+                data["tags"] = ", ".join(tags_limpia[:15])
+            else:
+                tags_limpia = [ingrediente.lower(), "salud natural", "bienestar", "herbolaria", "remedios naturales"]
+                data["tags"] = ", ".join(tags_limpia[:15])
 
             if "query_pexels" not in data:
                 data["query_pexels"] = f"{ingrediente} natural healthy"
@@ -451,7 +571,7 @@ def crear_overlay_aviso(salida="aviso_overlay.png"):
         return None
 
 def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, ingrediente):
-    print(" Renderizando video con 2 escenas + TEXTO FINAL...")
+    print("🎬 Renderizando video con 2 escenas + TEXTO FINAL...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     audio1 = loop.run_until_complete(generar_audio(guion["guion_segmento_1"], "seg1.mp3"))
@@ -640,12 +760,16 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         creds = obtener_credenciales_youtube()
         youtube = build("youtube", "v3", credentials=creds)
     except Exception as e:
-        print(f" Error autenticando YouTube: {e}")
+        print(f"❌ Error autenticando YouTube: {e}")
         return None
 
     descripcion = f"""{gancho}
 
 {contexto}
+
+🌿 INGREDIENTE ESTRELLA: {ingrediente}
+
+⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
 
 📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
 💬 Contáctanos directamente por WhatsApp: {WHATSAPP_NUMBER}
@@ -680,7 +804,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # 🚀 MAIN
 # ================================================================
 def main():
-    print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts")
+    print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts (Blindado contra políticas)")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']} ({CONFIG_VOZ_ACTUAL['estilo']})")
 
@@ -699,7 +823,7 @@ def main():
     contenido = ia_genera_contenido_completo(producto)
 
     ingrediente_elegido = contenido["ingrediente_elegido"]
-    print(f" Ingrediente elegido por IA: {ingrediente_elegido}")
+    print(f"🌱 Ingrediente elegido por IA: {ingrediente_elegido}")
     print(f"📝 Título: {contenido['titulo']}")
 
     query_pexels = contenido.get("query_pexels", f"{ingrediente_elegido} natural healthy")
