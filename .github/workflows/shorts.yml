@@ -2,8 +2,13 @@ name: YouTube Shorts - Bot Herbolaria
 
 on:
   schedule:
-    - cron: '0 */4 * * *'  # Cada 4 horas
-  workflow_dispatch:       # Ejecución manual
+    # 15,17,19,21 UTC = 9:00, 11:00, 13:00, 15:00 CDMX
+    - cron: '0 15,17,19,21 * * *'
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: 'Forzar publicación fuera de ventana (1 = sí, solo pruebas)'
+        default: '0'
 
 permissions:
   contents: write
@@ -11,6 +16,8 @@ permissions:
 jobs:
   publicar-short:
     runs-on: ubuntu-latest
+    env:
+      FORZAR_PUBLICACION: ${{ github.event.inputs.forzar || '0' }}
     steps:
       - name: Checkout repositorio
         uses: actions/checkout@v4
@@ -34,5 +41,4 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Actualizar estado herbolaria [skip ci]"
-          # ✅ CORREGIDO: Solo los archivos que el bot realmente genera
           file_pattern: "estado_herbolaria.json ingredientes_usados.json titulos_herbolaria_publicados.json"
