@@ -9,6 +9,7 @@ import time
 import pandas as pd
 import io
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from moviepy.editor import (
@@ -17,6 +18,7 @@ from moviepy.editor import (
     ImageClip,
     concatenate_audioclips,
     concatenate_videoclips,
+    CompositeVideoClip,
 )
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 import requests
@@ -51,19 +53,34 @@ MAX_VIDEOS_DIA = 1
 ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
+# ⏰ VENTANA DE PUBLICACIÓN (hora CDMX)
+HORA_MIN_PUBLICAR = 9
+HORA_MAX_PUBLICAR = 17
+
+# 🛡️ TÍTULOS SEGUROS (política de salud de YouTube)
+PALABRAS_PROHIBIDAS_TITULO = [
+    "cura", "milagrosa", "milagroso", "milagro", "científicamente comprobado",
+    "cientificamente comprobado", "comprobado científicamente", "sana", "sanar",
+    "elimina para siempre", "garantizado", "reemplaza", "sustituye tu tratamiento",
+    "adiós definitivo", "100% efectivo", "solución", "elimina", "adiós",
+    "eterna juventud", "limpiar tu cuerpo",
+]
+
+FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
 # ================================================================
-# 🌿 TEMAS VIRALES DE SALUD
+# 🌿 TEMAS VIRALES DE SALUD (Seguros)
 # ================================================================
 TEMAS_VIRALES_SALUD = [
-    {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas"], "busquedas": 850000, "ctr_potencial": 9.2, "retencion_objetivo": 78, "tendencia": "creciente"},
-    {"tema": "remedio_casero", "keywords_cortas": ["remedio casero", "natural", "tradicional"], "keywords_largas": ["remedios caseros efectivos", "tratamiento natural"], "busquedas": 920000, "ctr_potencial": 8.8, "retencion_objetivo": 75, "tendencia": "estable"},
-    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "comprobado"], "keywords_largas": ["estudios científicos comprobados", "evidencia científica"], "busquedas": 680000, "ctr_potencial": 10.5, "retencion_objetivo": 82, "tendencia": "explosiva"},
-    {"tema": "cura_milagrosa", "keywords_cortas": ["cura", "eliminar", "sanar"], "keywords_largas": ["como eliminar naturalmente", "cura natural efectiva"], "busquedas": 1200000, "ctr_potencial": 11.3, "retencion_objetivo": 80, "tendencia": "explosiva"},
+    {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales"], "busquedas": 850000, "ctr_potencial": 9.2, "retencion_objetivo": 78, "tendencia": "creciente"},
+    {"tema": "remedio_casero", "keywords_cortas": ["remedio casero", "natural", "tradicional"], "keywords_largas": ["remedios caseros", "tratamiento natural"], "busquedas": 920000, "ctr_potencial": 8.8, "retencion_objetivo": 75, "tendencia": "estable"},
+    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "comprobado"], "keywords_largas": ["estudios científicos", "evidencia científica"], "busquedas": 680000, "ctr_potencial": 10.5, "retencion_objetivo": 82, "tendencia": "explosiva"},
+    {"tema": "alivio_natural", "keywords_cortas": ["alivio natural", "bienestar", "tradición"], "keywords_largas": ["alivio natural efectivo", "remedio tradicional mexicano"], "busquedas": 750000, "ctr_potencial": 10.8, "retencion_objetivo": 80, "tendencia": "creciente"},
     {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "tradicional"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional"], "busquedas": 540000, "ctr_potencial": 9.8, "retencion_objetivo": 77, "tendencia": "creciente"},
 ]
 
 # ================================================================
-# 🎯 FÓRMULAS DE TÍTULOS ÉLITE - VARIABILIDAD TOTAL (TOP CREATORS)
+# 🎯 FÓRMULAS DE TÍTULOS ÉLITE - VARIABILIDAD TOTAL (SEGURAS)
 # ================================================================
 FORMULAS_TITULOS_ELITE = {
     "secreto": [
@@ -73,14 +90,14 @@ FORMULAS_TITULOS_ELITE = {
     ],
     "pregunta": [
         "¿Sabías esto del {ingrediente}?",
-        "¿Puede el {ingrediente} combatir {problema}?",
+        "¿Puede el {ingrediente} apoyar en {problema}?",
         "¿Conocías el {ingrediente}?",
         "¿Por qué deberías usar {ingrediente}?",
     ],
     "beneficio": [
         "{numero} beneficios del {ingrediente} que ignorabas",
-        "Así {beneficio} con {ingrediente}",
-        "{ingrediente}: El secreto para {beneficio}",
+        "Así apoya el {ingrediente} en tu {beneficio}",
+        "{ingrediente}: El aliado para {beneficio}",
     ],
     "como_usar": [
         "Cómo usar {ingrediente} para {beneficio}",
@@ -104,6 +121,11 @@ FORMULAS_TITULOS_ELITE = {
     "comparacion": [
         "{ingrediente} vs {problema}: ¿Funciona?",
         "Antes y después de usar {ingrediente}",
+    ],
+    "tradicion": [
+        "{ingrediente}: por qué la tradición herbal lo usa",
+        "El papel del {ingrediente} en la herbolaria",
+        "{ingrediente}: lo que tu abuela ya sabía",
     ],
 }
 
@@ -179,6 +201,51 @@ def guardar_titulo(titulo):
         data["titulos"].append(titulo)
         with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
 
+def sanitizar_titulo(titulo, ingrediente):
+    """Si el título trae claims médicos prohibidos, lo reemplaza por una fórmula segura."""
+    lower = (titulo or "").lower()
+    if any(p in lower for p in PALABRAS_PROHIBIDAS_TITULO):
+        plantillas = [
+            f"{ingrediente}: por qué la tradición herbal lo usa",
+            f"3 beneficios del {ingrediente} según la herbolaria",
+            f"Cómo se usa el {ingrediente} en la medicina tradicional",
+            f"{ingrediente}: lo que tu abuela ya sabía de esta planta",
+            f"El papel del {ingrediente} en tu bienestar diario",
+            f"¿Sabías esto del {ingrediente}?",
+            f"{ingrediente}: beneficios que ignorabas",
+            f"Por qué funciona el {ingrediente}",
+        ]
+        nuevo = random.choice(plantillas)
+        print(f"🛡️ Título con claim riesgoso detectado → reemplazado: {nuevo}")
+        return nuevo[:70]
+    return (titulo or "")[:70]
+
+def deberia_publicar_ahora(estado):
+    tz = pytz.timezone("America/Mexico_City")
+    ahora = datetime.now(tz)
+    hoy = ahora.date().isoformat()
+    if estado.get("fecha") != hoy:
+        estado["fecha"] = hoy
+        estado["publicaciones_hoy"] = 0
+    if estado.get("publicaciones_hoy", 0) >= MAX_VIDEOS_DIA:
+        print("✅ Límite diario alcanzado.")
+        return False
+
+    # ⏰ Solo publicar dentro de la ventana 9:00-17:00 CDMX
+    forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
+    if not forzar and not (HORA_MIN_PUBLICAR <= ahora.hour < HORA_MAX_PUBLICAR):
+        print(f"⏰ Fuera de ventana horaria ({ahora.hour}h CDMX). Solo publico entre {HORA_MIN_PUBLICAR}:00 y {HORA_MAX_PUBLICAR}:00.")
+        return False
+
+    ultima = estado.get("ultima_publicacion")
+    if ultima:
+        diff = (ahora - datetime.fromisoformat(ultima)).total_seconds() / 3600
+        intervalo = random.uniform(3, 5)  # Entre 3-5 horas entre shorts
+        if diff < intervalo:
+            print(f"⏳ Esperando {intervalo:.1f}h (han pasado {diff:.1f}h).")
+            return False
+    return True
+
 # ================================================================
 #  IA GENERA CONTENIDO COMPLETO CON SEO AVANZADO
 # ================================================================
@@ -209,8 +276,8 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 
 {{
     "ingrediente_elegido": "Nombre real del ingrediente (ej: Piña, no Sabor Piña)",
-    "titulo": "Título viral corto con hashtags (máx 70 chars, usa fórmulas variadas: 'El secreto de...', '¿Sabías que...?', 'X beneficios de...', 'Cómo usar...', 'La verdad sobre...', 'Por qué funciona...', etc.)",
-    "guion_segmento_1": "Texto de 25 segundos sobre el ingrediente (65-75 palabras). Inicia con pregunta impactante. Menciona 2-3 beneficios científicos concretos. NO menciones el producto ni contacto.",
+    "titulo": "Título viral corto con hashtags (máx 70 chars, usa fórmulas variadas y SEGURAS)",
+    "guion_segmento_1": "Texto de 25 segundos sobre el ingrediente (65-75 palabras). Inicia con pregunta impactante. Menciona 2-3 beneficios. NO menciones el producto ni contacto.",
     "guion_segmento_2": "Texto de 20 segundos presentando el producto (50-60 palabras). Menciona el nombre del producto y que contiene el ingrediente. DEBE terminar exactamente con: '¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp al número en la descripción, o a nuestro asesor inteligente de telegram'",
     "tags": "tag1, tag2, tag3 (10-15 tags incluyendo keywords: {', '.join(tema_viral['keywords_cortas'][:2])}, {', '.join(tema_viral['keywords_largas'][:1])})",
     "descripcion_corta": "Descripción SEO del video (máx 120 caracteres)",
@@ -224,6 +291,11 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 - El Segmento 2 DEBE terminar con la frase exacta de contacto
 - El título debe incluir hashtags y ser variado (NO siempre "El secreto de...")
 - query_pexels debe ser en inglés y específico
+
+TÍTULO SEGURO DE POLÍTICAS (CRÍTICO):
+- PROHIBIDO en el título: "cura", "milagrosa/milagroso", "científicamente comprobado", "sana/sanar", "elimina", "garantizado", "reemplaza medicamentos", "solución", "adiós", "eterna juventud", "limpiar tu cuerpo".
+- Usa marcos seguros: "apoya", "favorece", "contribuye al bienestar", "alivio", "uso tradicional", "beneficios", "por qué se usa", "aliado", "ayuda".
+- Ejemplos OK: "Aloe Vera: por qué la tradición lo usa en golpes", "¿Sabías esto del nopal?", "Cúrcuma: beneficios que ignorabas", "Por qué funciona la manzanilla".
 """
 
     for intento in range(6):
@@ -232,7 +304,7 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.8, "max_tokens": 1000, "response_format": {"type": "json_object"}}, timeout=90)
+                      "temperature": 0.85, "max_tokens": 1000, "response_format": {"type": "json_object"}}, timeout=90)
             r.raise_for_status()
             respuesta = r.json()["choices"][0]["message"]["content"].strip()
             respuesta = re.sub(r'`json\s*', '', respuesta).replace('`', '')
@@ -257,9 +329,14 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
                 oraciones.append(cta_obligatorio)
                 data["guion_segmento_2"] = " ".join(oraciones)
 
+            # ✅ SANITIZAR TÍTULO
+            ingrediente = data["ingrediente_elegido"]
             titulo = data.get("titulo", "").strip()
+            data["titulo"] = sanitizar_titulo(titulo, ingrediente)
+
+            # Asegurar hashtags
+            titulo = data["titulo"]
             if "#" not in titulo or len(titulo) > 75:
-                ingrediente = data["ingrediente_elegido"]
                 hashtags = [f"#{ingrediente.replace(' ', '').lower()}", "#saludnatural", "#herbolaria"]
                 formulas_variadas = [
                     f"El secreto del {ingrediente}",
@@ -267,17 +344,17 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
                     f"{ingrediente}: Beneficios que ignorabas",
                     f"Por qué funciona el {ingrediente}",
                     f"Cómo usar {ingrediente}",
+                    f"{ingrediente}: lo que tu abuela ya sabía",
                 ]
                 titulo_base = random.choice(formulas_variadas)
                 titulo = f"{titulo_base} {' '.join(hashtags[:2])}"
-            data["titulo"] = titulo
+            data["titulo"] = titulo[:70]
 
             tags_list = [t.strip() for t in data.get("tags", "").split(",") if t.strip()][:10]
             for kw in tema_viral.get("keywords_cortas", [])[:2]:
                 if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
             for kw in tema_viral.get("keywords_largas", [])[:2]:
                 if kw.lower() not in [t.lower() for t in tags_list]: tags_list.append(kw)
-            ingrediente = data["ingrediente_elegido"]
             for ext in [ingrediente.lower(), "salud natural", "bienestar", "medicina natural"]:
                 if ext not in tags_list and len(tags_list) < 15: tags_list.append(ext)
             data["tags"] = ", ".join(tags_list[:15])
@@ -327,10 +404,6 @@ async def generar_audio(texto, path):
         return None
 
 def crear_imagen_texto_cta(texto, ancho=1080, alto=220):
-    """
-    Genera una imagen PNG transparente con el texto CTA usando PIL,
-    en vez de depender de ImageMagick (que moviepy.TextClip requiere).
-    """
     img = Image.new("RGBA", (ancho, alto), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
@@ -353,7 +426,6 @@ def crear_imagen_texto_cta(texto, ancho=1080, alto=220):
     pos_x = (ancho - ancho_texto) // 2
     pos_y = (alto - alto_texto) // 2
 
-    # Contorno negro manual (simula el stroke de TextClip)
     for dx in range(-3, 4):
         for dy in range(-3, 4):
             if dx == 0 and dy == 0:
@@ -362,6 +434,21 @@ def crear_imagen_texto_cta(texto, ancho=1080, alto=220):
     draw.text((pos_x, pos_y), texto, font=fuente, fill=(255, 255, 255, 255))
 
     return img
+
+def crear_overlay_aviso(salida="aviso_overlay.png"):
+    try:
+        img = Image.new("RGBA", (1080, 1920), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        txt = "Contenido educativo. No sustituye la consulta médica."
+        f = ImageFont.truetype(FUENTE, 40)
+        tw = d.textbbox((0, 0), txt, font=f)[2]
+        d.rounded_rectangle([((1080 - tw) // 2 - 30, 1500), ((1080 + tw) // 2 + 30, 1570)], radius=18, fill=(0, 0, 0, 165))
+        d.text(((1080 - tw) // 2, 1516), txt, font=f, fill=(255, 255, 255, 235))
+        img.save(salida)
+        return salida
+    except Exception as e:
+        print(f"⚠️ Error overlay aviso: {e}")
+        return None
 
 def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, ingrediente):
     print(" Renderizando video con 2 escenas + TEXTO FINAL...")
@@ -444,7 +531,7 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
     # Unir videos
     video_final = concatenate_videoclips(clips_video, method="compose")
 
-    # 🎵 MEZCLA DE AUDIO CON MÚSICA (VOLUMEN CORREGIDO)
+    # 🎵 MEZCLA DE AUDIO CON MÚSICA
     print("\n🔍 Buscando archivos de música...")
     todos_archivos = os.listdir(".")
     mp3_files = [f for f in todos_archivos if f.lower().endswith(".mp3")]
@@ -469,7 +556,6 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
                 print(f"   🎵 Probando música: {musica_path}")
                 musica = AudioFileClip(musica_path)
                 print(f"      Duración: {musica.duration}s")
-                # ✅ VOLUMEN DE MÚSICA AUMENTADO (15% en lugar de 10%)
                 musica = musica.subclip(0, duracion_total).volumex(0.15)
                 audio_final = CompositeAudioClip([audio_total, musica])
                 video_final = video_final.set_audio(audio_final)
@@ -484,27 +570,35 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
         print("⚠️ No se pudo cargar música. Solo voz.")
         video_final = video_final.set_audio(audio_total)
 
-    # ️ AGREGAR TEXTO "CONTÁCTANOS EN LA DESCRIPCIÓN" EN ÚLTIMOS 15 SEGUNDOS
-    # (Generado con PIL en vez de moviepy.TextClip para no depender de ImageMagick)
-    print("\n✍️ Agregando texto 'Contáctanos en la descripción' en los últimos 15 segundos...")
+    # AGREGAR TEXTO CTA + AVISO LEGAL
+    print("\n✍️ Agregando overlays...")
     try:
+        clips_overlays = [video_final]
+        
+        # Aviso legal al inicio (5 segundos)
+        aviso = crear_overlay_aviso()
+        if aviso:
+            av_clip = ImageClip(aviso, transparent=True).set_start(0).set_duration(5)
+            clips_overlays.append(av_clip)
+            print("✅ Aviso legal agregado")
+        
+        # Texto CTA en últimos 15 segundos
         texto_cta = "📩 Contáctanos en la descripción"
         img_texto = crear_imagen_texto_cta(texto_cta)
         img_texto.save("temp_texto_cta.png")
 
-        from moviepy.editor import CompositeVideoClip
-
         txt_clip = ImageClip("temp_texto_cta.png").set_duration(15).set_start(max(duracion_total - 15, 0))
         txt_clip = txt_clip.set_pos(("center", 1650))
-
-        video_final = CompositeVideoClip([video_final, txt_clip])
-        print("✅ Texto CTA agregado exitosamente (sin depender de ImageMagick)")
+        clips_overlays.append(txt_clip)
+        
+        video_final = CompositeVideoClip(clips_overlays)
+        print("✅ Overlays agregados exitosamente")
     except Exception as e:
-        print(f"⚠️ Error agregando texto: {e}. Continuando sin texto...")
+        print(f"⚠️ Error agregando overlays: {e}. Continuando sin ellos...")
 
     video_final.write_videofile("short_final.mp4", fps=24, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
-    for f in ["seg1.mp3", "seg2.mp3", "temp_ingrediente.jpg", "temp_producto_compuesto.jpg", "temp_producto_fallback.jpg", "temp_texto_cta.png"]:
+    for f in ["seg1.mp3", "seg2.mp3", "temp_ingrediente.jpg", "temp_producto_compuesto.jpg", "temp_producto_fallback.jpg", "temp_texto_cta.png", "aviso_overlay.png"]:
         if os.path.exists(f): os.remove(f)
 
     return "short_final.mp4"
@@ -512,9 +606,38 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
 # ================================================================
 # 📤 SUBIR A YOUTUBE
 # ================================================================
+def obtener_credenciales_youtube():
+    creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
+    if creds.expired and creds.refresh_token:
+        print("🔄 Token expirado, refrescando automáticamente...")
+        try:
+            creds.refresh(Request())
+            print("✅ Token refrescado exitosamente")
+        except Exception as e:
+            print(f"❌ Error refrescando token: {e}")
+            sys.exit(1)
+    return creds
+
+def fijar_comentario_contacto(youtube, video_id):
+    try:
+        texto = (
+            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n"
+            f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
+            f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
+            "👇 Coméntame qué remedio natural quieres que investiguemos en el próximo video."
+        )
+        youtube.commentThreads().insert(
+            part="snippet",
+            body={"snippet": {"videoId": video_id,
+                              "topLevelComment": {"snippet": {"textOriginal": texto}}}}
+        ).execute()
+        print("✅ Comentario de contacto publicado")
+    except Exception as e:
+        print(f"⚠️ Error comentario: {e}")
+
 def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, contexto, ingrediente):
     try:
-        creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
+        creds = obtener_credenciales_youtube()
         youtube = build("youtube", "v3", credentials=creds)
     except Exception as e:
         print(f" Error autenticando YouTube: {e}")
@@ -543,8 +666,12 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
     try:
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True))
         response = request.execute()
-        print(f"✅ Short subido: https://youtu.be/{response['id']}")
-        return response["id"]
+        video_id = response["id"]
+        print(f"✅ Short subido: https://youtu.be/{video_id}")
+        
+        fijar_comentario_contacto(youtube, video_id)
+        
+        return video_id
     except Exception as e:
         print(f"❌ Error subiendo a YouTube: {e}")
         return None
@@ -558,13 +685,8 @@ def main():
     print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']} ({CONFIG_VOZ_ACTUAL['estilo']})")
 
     estado = cargar_estado()
-    hoy = datetime.now(pytz.timezone("America/Mexico_City")).date().isoformat()
-    if estado.get("fecha") != hoy:
-        estado["fecha"] = hoy
-        estado["publicaciones_hoy"] = 0
-
-    if estado.get("publicaciones_hoy", 0) >= MAX_VIDEOS_DIA:
-        print("✅ Límite diario alcanzado.")
+    if not deberia_publicar_ahora(estado):
+        guardar_estado(estado)
         sys.exit(0)
 
     if not os.path.exists(EXCEL_FILE):
