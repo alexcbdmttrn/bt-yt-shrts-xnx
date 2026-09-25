@@ -9,12 +9,13 @@ import time
 import pandas as pd
 import io
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from moviepy.editor import (
     AudioFileClip, CompositeAudioClip, ImageClip,
     concatenate_audioclips, concatenate_videoclips, AudioClip,
-    CompositeVideoClip,  # ✅ CORREGIDO: faltaba este import
+    CompositeVideoClip,
 )
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
 import requests
@@ -56,14 +57,28 @@ PAUSA_ENTRE_SEGMENTOS = 0.5
 ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
+# ⏰ VENTANA DE PUBLICACIÓN (hora CDMX)
+HORA_MIN_PUBLICAR = 9
+HORA_MAX_PUBLICAR = 17
+
+# 🛡️ TÍTULOS SEGUROS (política de salud de YouTube)
+PALABRAS_PROHIBIDAS_TITULO = [
+    "cura", "milagrosa", "milagroso", "milagro", "científicamente comprobado",
+    "cientificamente comprobado", "comprobado científicamente", "sana", "sanar",
+    "elimina para siempre", "garantizado", "reemplaza", "sustituye tu tratamiento",
+    "adiós definitivo", "100% efectivo",
+]
+
+FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
 # ================================================================
-# 🌿 TEMAS VIRALES
+# 🌿 TEMAS VIRALES (Seguros para políticas de YouTube)
 # ================================================================
 TEMAS_VIRALES_SALUD = [
     {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "natural"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales comprobadas"], "ctr_potencial": 9.2},
     {"tema": "remedio_casero", "keywords_cortas": ["remedio casero", "natural", "tradicional"], "keywords_largas": ["remedios caseros efectivos", "tratamiento natural"], "ctr_potencial": 8.8},
     {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "comprobado"], "keywords_largas": ["estudios científicos comprobados", "evidencia científica"], "ctr_potencial": 10.5},
-    {"tema": "cura_milagrosa", "keywords_cortas": ["cura", "eliminar", "sanar"], "keywords_largas": ["como eliminar naturalmente", "cura natural efectiva"], "ctr_potencial": 11.3},
+    {"tema": "alivio_natural", "keywords_cortas": ["alivio natural", "bienestar", "tradición"], "keywords_largas": ["alivio natural efectivo", "remedio tradicional mexicano"], "ctr_potencial": 10.8},
     {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "tradicional"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional"], "ctr_potencial": 9.8},
 ]
 
@@ -116,16 +131,25 @@ def guardar_titulo(titulo):
         with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
 
 def deberia_publicar_ahora(estado):
-    hoy = datetime.now(pytz.timezone("America/Mexico_City")).date().isoformat()
+    tz = pytz.timezone("America/Mexico_City")
+    ahora = datetime.now(tz)
+    hoy = ahora.date().isoformat()
     if estado.get("fecha") != hoy:
         estado["fecha"] = hoy
         estado["publicaciones_hoy"] = 0
     if estado.get("publicaciones_hoy", 0) >= MAX_LARGOS_DIA:
         print("✅ Límite diario de videos largos alcanzado.")
         return False
+
+    # ⏰ Solo publicar dentro de la ventana 9:00-17:00 CDMX
+    forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
+    if not forzar and not (HORA_MIN_PUBLICAR <= ahora.hour < HORA_MAX_PUBLICAR):
+        print(f"⏰ Fuera de ventana horaria ({ahora.hour}h CDMX). Solo publico entre {HORA_MIN_PUBLICAR}:00 y {HORA_MAX_PUBLICAR}:00.")
+        return False
+
     ultima = estado.get("ultima_publicacion")
     if ultima:
-        diff = (datetime.now(pytz.timezone("America/Mexico_City")) - datetime.fromisoformat(ultima)).total_seconds() / 3600
+        diff = (ahora - datetime.fromisoformat(ultima)).total_seconds() / 3600
         intervalo = random.uniform(INTERVALO_MIN_HORAS, INTERVALO_MAX_HORAS)
         if diff < intervalo:
             print(f"⏳ Esperando {intervalo:.1f}h (han pasado {diff:.1f}h).")
@@ -189,6 +213,22 @@ def obtener_curiosidad_catalogo(ingrediente):
     elegida = random.choice(relacionadas) if relacionadas else random.choice(curios)
     return f"{elegida.get('titulo', '')} {elegida.get('dato_curioso', '')}".strip()
 
+def sanitizar_titulo(titulo, ingrediente):
+    """Si el título trae claims médicos prohibidos, lo reemplaza por una fórmula segura."""
+    lower = (titulo or "").lower()
+    if any(p in lower for p in PALABRAS_PROHIBIDAS_TITULO):
+        plantillas = [
+            f"{ingrediente}: por qué la tradición herbal lo sigue usando",
+            f"3 beneficios del {ingrediente} según la herbolaria",
+            f"Cómo se usa el {ingrediente} en la medicina tradicional",
+            f"{ingrediente}: lo que tu abuela ya sabía de esta planta",
+            f"El papel del {ingrediente} en tu bienestar diario",
+        ]
+        nuevo = random.choice(plantillas)
+        print(f"🛡️ Título con claim riesgoso detectado → reemplazado: {nuevo}")
+        return nuevo[:70]
+    return (titulo or "")[:70]
+
 # ================================================================
 # 🤖 IA GENERA GUION
 # ================================================================
@@ -212,14 +252,14 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
 🎯 TEMA VIRAL DE ESTE VIDEO: {tema_viral['tema'].upper()} (keywords: {', '.join(tema_viral['keywords_cortas'])})
 
 🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~5 minutos):
-1. "hook" (15s, 35-45 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso si existe).
-2. "problema" (30s, 70-85 palabras): El problema/síntoma que sufre la audiencia ({producto.get('recomendado_para')}).
-3. "ingrediente" (45s, 105-125 palabras): Presenta el ingrediente estrella, origen e historia breve.
-4. "beneficio_1" (30s, 70-85 palabras): Primer beneficio científico concreto.
-5. "beneficio_2" (30s, 70-85 palabras): Segundo beneficio científico concreto.
-6. "beneficio_3" (30s, 70-85 palabras): Tercer beneficio científico concreto.
-7. "producto" (60s, 140-165 palabras): Presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
-8. "cta" (60s, 140-165 palabras): Resumen + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+1. "hook" (45-55 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso si existe).
+2. "problema" (85-100 palabras): El problema/síntoma que sufre la audiencia ({producto.get('recomendado_para')}).
+3. "ingrediente" (130-150 palabras): Presenta el ingrediente estrella, origen e historia breve.
+4. "beneficio_1" (90-105 palabras): Primer beneficio científico concreto.
+5. "beneficio_2" (90-105 palabras): Segundo beneficio científico concreto.
+6. "beneficio_3" (90-105 palabras): Tercer beneficio científico concreto.
+7. "producto" (170-195 palabras): Presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
+8. "cta" (165-190 palabras): Resumen + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
 
 REGLAS:
 - Si el ingrediente obligatorio suena a saborizante (ej: "Sabor Piña Natural"), habla del ingrediente REAL ("Piña") pero mantén la coherencia con el producto.
@@ -227,10 +267,15 @@ REGLAS:
 - Tono educativo, cálido y cercano. Sin emojis en el texto hablado.
 - Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, imagen horizontal 16:9 del subtema).
 
+TÍTULO SEGURO DE POLÍTICAS (CRÍTICO):
+- PROHIBIDO en el título: "cura", "milagrosa/milagroso", "científicamente comprobado", "sana/sanar", "elimina", "garantizado", "reemplaza medicamentos".
+- Usa marcos seguros: "apoya", "favorece", "contribuye al bienestar", "alivio", "uso tradicional", "beneficios", "por qué se usa".
+- Ejemplos OK: "Aloe Vera: por qué la tradición lo usa en golpes y moretones", "Zacate Limón: 3 beneficios que la herbolaria le atribuye".
+
 Devuelve ESTRICTAMENTE este JSON:
 {{
   "ingrediente_real": "nombre real normalizado del ingrediente para voz y búsqueda de imágenes (ej: Piña)",
-  "titulo": "Título SEO de video largo (máx 70 chars, sin hashtags, variado: pregunta, número, secreto, cómo, verdad...)",
+  "titulo": "Título SEO de video largo (máx 70 chars, sin hashtags, variado y SEGURO según reglas)",
   "segmentos": {{
     "hook": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "problema": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
@@ -252,7 +297,7 @@ Devuelve ESTRICTAMENTE este JSON:
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.8, "max_tokens": 3000, "response_format": {"type": "json_object"}}, timeout=120)
+                      "temperature": 0.8, "max_tokens": 3500, "response_format": {"type": "json_object"}}, timeout=120)
             r.raise_for_status()
             resp = r.json()["choices"][0]["message"]["content"].strip()
             resp = re.sub(r'`json\s*', '', resp).replace('`', '')
@@ -269,6 +314,7 @@ Devuelve ESTRICTAMENTE este JSON:
                 data["segmentos"]["cta"]["texto"] = cta_txt.rstrip() + " ¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
 
             data["ingrediente_real"] = data.get("ingrediente_real") or ingrediente
+            data["titulo"] = sanitizar_titulo(data.get("titulo"), data["ingrediente_real"])
             print(f"✅ Guion listo. Ingrediente real: {data['ingrediente_real']} | Título: {data.get('titulo')}")
             return data
         except Exception as e:
@@ -348,7 +394,7 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
             draw = ImageDraw.Draw(capa)
             font = None
             for size in range(72, 36, -4):
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
+                font = ImageFont.truetype(FUENTE, size)
                 if draw.textbbox((0, 0), texto.upper(), font=font)[2] < ANCHO * 0.85: break
             tw = draw.textbbox((0, 0), texto.upper(), font=font)[2]
             th = draw.textbbox((0, 0), texto.upper(), font=font)[3]
@@ -394,13 +440,28 @@ def crear_overlay_cta(salida="cta_overlay.png"):
         draw = ImageDraw.Draw(img)
         draw.rectangle([(0, ALTO - 150), (ANCHO, ALTO)], fill=(0, 0, 0, 185))
         texto = "CONTACTOS EN LA DESCRIPCIÓN"
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 62)
+        font = ImageFont.truetype(FUENTE, 62)
         tw = draw.textbbox((0, 0), texto, font=font)[2]
         draw.text(((ANCHO - tw) // 2, ALTO - 122), texto, font=font, fill=(255, 214, 102, 255))
         img.save(salida)
         return salida
     except Exception as e:
         print(f"⚠️ Error overlay CTA: {e}")
+        return None
+
+def crear_overlay_aviso(salida="aviso_overlay.png"):
+    try:
+        img = Image.new("RGBA", (ANCHO, ALTO), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        txt = "Contenido educativo. No sustituye la consulta médica."
+        f = ImageFont.truetype(FUENTE, 40)
+        tw = d.textbbox((0, 0), txt, font=f)[2]
+        d.rounded_rectangle([((ANCHO - tw) // 2 - 30, 60), ((ANCHO + tw) // 2 + 30, 130)], radius=18, fill=(0, 0, 0, 165))
+        d.text(((ANCHO - tw) // 2, 76), txt, font=f, fill=(255, 255, 255, 235))
+        img.save(salida)
+        return salida
+    except Exception as e:
+        print(f"⚠️ Error overlay aviso: {e}")
         return None
 
 # ================================================================
@@ -457,11 +518,19 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
 
     video = video.set_audio(audio_final)
 
-    # ✅ CompositeVideoClip ya está importado correctamente
+    # Overlays (Aviso + CTA)
+    clips_overlays = [video]
+    aviso = crear_overlay_aviso()
+    if aviso:
+        av_clip = ImageClip(aviso, transparent=True).set_start(0).set_duration(6)
+        clips_overlays.append(av_clip)
+
     overlay = crear_overlay_cta()
     if overlay:
         cta_clip = ImageClip(overlay, transparent=True).set_start(max(duracion_total - 15, 0)).set_duration(15)
-        video = CompositeVideoClip([video, cta_clip], size=(ANCHO, ALTO))
+        clips_overlays.append(cta_clip)
+
+    video = CompositeVideoClip(clips_overlays, size=(ANCHO, ALTO))
 
     print("🎬 Renderizando video largo (puede tardar varios minutos)...")
     video.write_videofile(salida, fps=24, codec="libx264", audio_codec="aac",
@@ -469,49 +538,106 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     return salida
 
 # ================================================================
-# 🖼️ MINIATURA
+# 🖼️ MINIATURA V2 (Alto CTR)
 # ================================================================
 def crear_miniatura_larga(img_base, url_producto, texto, salida="thumb_largo.jpg"):
     try:
         with Image.open(img_base) as bg:
             bg = ImageOps.fit(bg.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS)
-            bg = ImageEnhance.Contrast(bg).enhance(1.25).convert("RGBA")
+            bg = ImageEnhance.Color(bg).enhance(1.35)
+            bg = ImageEnhance.Brightness(bg).enhance(1.12)
+            bg = ImageEnhance.Contrast(bg).enhance(1.15)
+            bg = bg.convert("RGBA")
             capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
             d = ImageDraw.Draw(capa)
-            d.rectangle([(0, 0), (760, 720)], fill=(0, 0, 0, 150))
-            palabras = texto.upper().split()
-            lineas, actual = [], ""
-            for p in palabras:
-                if len(actual + " " + p) > 22: lineas.append(actual); actual = p
-                else: actual = (actual + " " + p).strip()
-            if actual: lineas.append(actual)
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 68)
-            y = 180
-            for ln in lineas[:3]:
-                d.text((60, y), ln, font=font, fill=(255, 214, 102, 255))
-                y += 86
+            # Degradado lateral
+            for x in range(0, 780):
+                a = int(215 * (1 - x / 780))
+                d.line([(x, 0), (x, 720)], fill=(0, 0, 0, a))
+            # Texto corto
+            palabras = [p for p in re.sub(r'[^\w\sáéíóúñÁÉÍÓÚÑ]', '', texto).split() if len(p) > 2][:4]
+            frase = " ".join(palabras).upper()
+            size = 132
+            font = ImageFont.truetype(FUENTE, size)
+            while size > 58 and d.textbbox((0, 0), frase, font=font)[2] > 690:
+                size -= 6
+                font = ImageFont.truetype(FUENTE, size)
+            lineas = [frase]
+            if d.textbbox((0, 0), frase, font=font)[2] > 690:
+                mid = len(frase) // 2
+                idx = frase.rfind(' ', 0, mid + 12)
+                if idx > 0:
+                    lineas = [frase[:idx], frase[idx+1:]]
+            y = 300 - (len(lineas) - 1) * int(size * 0.62)
+            for ln in lineas:
+                d.text((60, y), ln, font=font, fill=(255, 214, 102, 255),
+                       stroke_width=7, stroke_fill=(0, 0, 0, 255))
+                y += int(size * 1.16)
+            # Badge
+            fb = ImageFont.truetype(FUENTE, 32)
+            badge = "HERBOLARIA TRADICIONAL"
+            bw = d.textbbox((0, 0), badge, font=fb)[2]
+            d.rounded_rectangle([(60, 606), (60 + bw + 48, 668)], radius=31, fill=(198, 40, 40, 235))
+            d.text((84, 620), badge, font=fb, fill=(255, 255, 255, 255))
             bg = Image.alpha_composite(bg, capa)
+            # Producto
             try:
                 rp = requests.get(url_producto, timeout=20, verify=False)
                 prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
                 try: prod = remove(prod)
                 except Exception: pass
-                ph = 560
+                ph = 620
                 prod = prod.resize((int(prod.width * (ph / prod.height)), ph), Image.Resampling.LANCZOS)
-                bg.paste(prod, (1280 - prod.width - 60, (720 - ph) // 2), prod)
+                gx = 1280 - prod.width - 40
+                gy = (720 - ph) // 2
+                halo = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+                hd = ImageDraw.Draw(halo)
+                hd.ellipse([gx - 50, gy + ph * 0.5, gx + prod.width + 50, gy + ph + 70], fill=(255, 255, 255, 110))
+                halo = halo.filter(ImageFilter.GaussianBlur(35))
+                bg = Image.alpha_composite(bg, halo)
+                bg.paste(prod, (gx, gy), prod)
             except Exception: pass
             bg.convert("RGB").save(salida, "JPEG", quality=92)
-            print(f"✅ Miniatura larga creada: {salida}")
+            print(f"✅ Miniatura v2 creada: {salida}")
             return salida
     except Exception as e:
-        print(f"⚠️ Error miniatura larga: {e}")
+        print(f"⚠️ Error miniatura v2: {e}")
         return None
 
 # ================================================================
 # 📤 SUBIR A YOUTUBE
 # ================================================================
-def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto, ingrediente):
+def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
+    if creds.expired and creds.refresh_token:
+        print("🔄 Token expirado, refrescando automáticamente...")
+        try:
+            creds.refresh(Request())
+            print("✅ Token refrescado exitosamente")
+        except Exception as e:
+            print(f"❌ Error refrescando token: {e}")
+            sys.exit(1)
+    return creds
+
+def fijar_comentario_contacto(youtube, video_id):
+    try:
+        texto = (
+            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n"
+            f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
+            f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
+            "👇 Coméntame qué remedio natural quieres que investiguemos en el próximo video."
+        )
+        youtube.commentThreads().insert(
+            part="snippet",
+            body={"snippet": {"videoId": video_id,
+                              "topLevelComment": {"snippet": {"textOriginal": texto}}}}
+        ).execute()
+        print("✅ Comentario de contacto publicado")
+    except Exception as e:
+        print(f"⚠️ Error comentario: {e}")
+
+def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto, ingrediente):
+    creds = obtener_credenciales_youtube()
     youtube = build("youtube", "v3", credentials=creds)
 
     descripcion = f"""{gancho}
@@ -559,6 +685,8 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
             print("✅ Miniatura personalizada subida")
         except Exception as e:
             print(f"⚠️ Error miniatura: {e}")
+            
+    fijar_comentario_contacto(youtube, video_id)
     return video_id
 
 # ================================================================
@@ -624,7 +752,7 @@ def main():
     print(f"\n🎉 VIDEO LARGO PUBLICADO: https://youtu.be/{video_id}")
 
     for f in os.listdir("."):
-        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "largo_final.mp4", "thumb_largo.jpg"):
+        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg"):
             try: os.remove(f)
             except Exception: pass
 
