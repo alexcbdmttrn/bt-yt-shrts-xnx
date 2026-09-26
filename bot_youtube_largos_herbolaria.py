@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from datetime import datetime
 import json
 import os
@@ -34,6 +35,11 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 YOUTUBE_USER_TOKEN = json.loads(os.getenv("YOUTUBE_USER_TOKEN")) if os.getenv("YOUTUBE_USER_TOKEN") else {}
+
+# 🎨 Keys OPCIONALES para Flux (si no están, se usa Pexels directamente)
+HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 
 WHATSAPP_NUMBER = "+52 3123395334"
 TELEGRAM_BOT = "@alex_xanax_bot"
@@ -504,7 +510,7 @@ TAMPOCO uses:
 
 📝 TÍTULO DEL VIDEO (MUY IMPORTANTE PARA SEO):
 DEBE contener al inicio (primeras 3 palabras) una keyword viral:
-"For qué sirve"/"Para qué sirve", "Beneficios de", "Remedios naturales", "Remedios caseros",
+"Para qué sirve", "Beneficios de", "Remedios naturales", "Remedios caseros",
 "Cómo usar", "Propiedades de", "Hierbas medicinales", "Medicina natural",
 "Plantas medicinales", "Salud natural", "Herbolaria mexicana"
 
@@ -789,6 +795,65 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     return salida
 
 # ================================================================
+# 🎨 MOTOR DE FONDOS FLUX (3 intentos) + FALLBACK PEXELS
+# ================================================================
+FLUX_PROMPT_SUFFIX = (", dramatic macro photography, vivid saturated colors, cinematic lighting, "
+                      "professional youtube thumbnail background, no text, no watermark, widescreen 16:9")
+
+def _guardar_fondo(bytes_img, salida):
+    with open(salida, "wb") as f:
+        f.write(bytes_img)
+    return salida
+
+def buscar_fondo_flux_huggingface(query, salida="bg_ia.jpg"):
+    """Flux.1-schnell vía Hugging Face Inference API (tier gratis)."""
+    url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+    payload = {"inputs": query + FLUX_PROMPT_SUFFIX}
+    r = requests.post(url, headers=headers, json=payload, timeout=120)
+    r.raise_for_status()
+    ctype = r.headers.get("Content-Type", "")
+    if "image" not in ctype or len(r.content) < 20000:
+        raise ValueError(f"HF no devolvió imagen válida (ctype={ctype}, bytes={len(r.content)})")
+    return _guardar_fondo(r.content, salida)
+
+def buscar_fondo_flux_cloudflare(query, salida="bg_ia.jpg"):
+    """Flux.1-schnell vía Cloudflare Workers AI (10,000 neuronas/día gratis)."""
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+    headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
+    payload = {"prompt": query + FLUX_PROMPT_SUFFIX, "width": 1280, "height": 720, "steps": 4}
+    r = requests.post(url, headers=headers, json=payload, timeout=120)
+    r.raise_for_status()
+    data = r.json()
+    b64 = (data.get("result") or {}).get("image")
+    if not b64:
+        raise ValueError(f"Cloudflare no devolvió imagen: {str(data)[:200]}")
+    return _guardar_fondo(base64.b64decode(b64), salida)
+
+def buscar_fondo_ia_flux(query, salida="bg_ia.jpg", intentos=3):
+    """Intenta Flux hasta 3 veces rotando proveedores gratis. Devuelve None si falla."""
+    providers = []
+    if HUGGINGFACE_TOKEN:
+        providers.append(("HuggingFace", buscar_fondo_flux_huggingface))
+    if CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID:
+        providers.append(("Cloudflare", buscar_fondo_flux_cloudflare))
+    if not providers:
+        print("⚠️ Sin keys de Flux configuradas (HUGGINGFACE_TOKEN / CLOUDFLARE_API_TOKEN). Se usará Pexels.")
+        return None
+    for intento in range(1, intentos + 1):
+        nombre, fn = providers[(intento - 1) % len(providers)]
+        try:
+            print(f"🎨 Generando fondo con Flux ({nombre}) - intento {intento}/{intentos}...")
+            resultado = fn(query, salida)
+            print(f"✅ Fondo Flux generado ({nombre})")
+            return resultado
+        except Exception as e:
+            print(f"⚠️ Flux ({nombre}) falló: {e}")
+            time.sleep(3)
+    print("⚠️ Flux falló tras 3 intentos. Usando Pexels como siempre.")
+    return None
+
+# ================================================================
 # 🖼️ THUMBNAIL ENGINE V3 (estilo viral: texto gigante + banners + producto)
 # ================================================================
 FONT_THUMB_URL = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
@@ -865,21 +930,6 @@ def _fit(texto, font_path, size_max, size_min, ancho_max, renderer, **kw):
             return img
         size -= 6
     return renderer(texto, font_path, size_min, **kw)
-
-def buscar_fondo_ia_pollinations(query, salida="bg_ia.jpg"):
-    """Fondo dramático GRATIS sin API key (Pollinations/Flux). Devuelve None si falla."""
-    try:
-        prompt = urllib.parse.quote(f"{query}, dramatic macro photography, vivid saturated colors, cinematic lighting, professional youtube thumbnail background, no text, no watermark")
-        url = f"https://image.pollinations.ai/prompt/{prompt}?width=1280&height=720&nologo=true&model=flux"
-        r = requests.get(url, timeout=75)
-        if r.status_code == 200 and len(r.content) > 20000:
-            with open(salida, "wb") as f:
-                f.write(r.content)
-            print("✅ Fondo IA gratis generado (Pollinations)")
-            return salida
-    except Exception as e:
-        print(f"⚠️ Pollinations falló, usando Pexels: {e}")
-    return None
 
 def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_seguro, salida="thumb_largo.jpg"):
     """Miniatura estilo viral: ingrediente gigante + PARA + banners de beneficio + producto con halo."""
@@ -1113,8 +1163,14 @@ def main():
 
     video_path = montar_video_largo(segmentos_img)
 
-    # 🖼️ Miniatura V3: fondo IA gratis (Pollinations) o fallback Pexels
-    base_thumb = buscar_fondo_ia_pollinations(f"{ingrediente_hablado} plant natural vivid") or "img_largo_2.jpg"
+    # 🖼️ Miniatura V3: fondo Flux (3 intentos) → Pexels como siempre si Flux falla
+    base_thumb = buscar_fondo_ia_flux(f"{ingrediente_hablado} plant natural vivid macro")
+    if not base_thumb:
+        url_bg = buscar_imagen_pexels_horizontal(f"{ingrediente_hablado} plant natural")
+        if url_bg:
+            base_thumb = descargar_imagen(url_bg, "bg_pexels.jpg")
+        else:
+            base_thumb = "img_largo_2.jpg"
     thumb = crear_miniatura_larga(base_thumb, producto["imagen_url"], ingrediente_hablado, problema, guion["titulo"])
 
     video_id = subir_video_largo(video_path, thumb, guion["titulo"], guion["tags"],
@@ -1130,7 +1186,7 @@ def main():
     print(f"\n🎉 VIDEO LARGO PUBLICADO CON SEO VIRAL: https://youtu.be/{video_id}")
 
     for f in os.listdir("."):
-        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg"):
+        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg", "bg_pexels.jpg"):
             try: os.remove(f)
             except Exception: pass
 
