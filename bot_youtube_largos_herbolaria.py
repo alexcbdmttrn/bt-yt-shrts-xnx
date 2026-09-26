@@ -8,6 +8,8 @@ import sys
 import time
 import pandas as pd
 import io
+import numpy as np
+import urllib.parse
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -61,7 +63,11 @@ DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e 
 HORA_MIN_PUBLICAR = 9
 HORA_MAX_PUBLICAR = 17
 
-# 🛡️ LISTA AMPLIADA DE PALABRAS PROHIBIDAS (Política de salud de YouTube)
+FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+# ================================================================
+# 🛡️ PALABRAS PROHIBIDAS (Política de salud de YouTube - 9 categorías)
+# ================================================================
 PALABRAS_PROHIBIDAS_TITULO = [
     # 1. Claims de curación
     "cura", "curar", "cura milagrosa", "curación",
@@ -149,12 +155,9 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "limpiar tu cuerpo", "limpieza total del cuerpo",
 ]
 
-FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-
 # ================================================================
-# 🔥 BASE DE DATOS DE KEYWORDS VIRALES (Alto volumen de búsqueda)
+# 🔥 BASE DE DATOS DE KEYWORDS VIRALES (alto volumen de búsqueda)
 # ================================================================
-# Organizado por categoría con peso de importancia (1-10)
 KEYWORDS_VIRALES = {
     "generales_alto_volumen": [
         {"kw": "remedios naturales", "peso": 10},
@@ -207,48 +210,22 @@ KEYWORDS_VIRALES = {
     ],
 }
 
-# Hashtags virales obligatorios para cada video
 HASHTAGS_VIRALES = [
     "#remediosnaturales", "#remedioscaseros", "#saludnatural",
     "#medicinanatural", "#herbolaria", "#hierbasmedicinales",
     "#plantasmedicinales", "#bienestar", "#tipsdesalud",
-    "#salud", "#natural", "#tradicionmexicana"
+    "#salud", "#natural", "#tradicionmexicana",
 ]
 
 # ================================================================
-# 🌿 TEMAS VIRALES (con keywords de alto volumen)
+# 🌿 TEMAS VIRALES (seguros + keywords de alto volumen)
 # ================================================================
 TEMAS_VIRALES_SALUD = [
-    {
-        "tema": "beneficios_ocultos",
-        "keywords_cortas": ["beneficios", "propiedades", "remedios naturales", "para qué sirve"],
-        "keywords_largas": ["beneficios que no conocías", "propiedades medicinales de las hierbas", "remedios naturales efectivos"],
-        "ctr_potencial": 9.2
-    },
-    {
-        "tema": "remedio_casero",
-        "keywords_cortas": ["remedios caseros", "natural", "tradición", "hierbas medicinales"],
-        "keywords_largas": ["remedios caseros efectivos", "tratamiento natural con hierbas", "remedios de la abuela"],
-        "ctr_potencial": 9.5
-    },
-    {
-        "tema": "alivio_natural",
-        "keywords_cortas": ["alivio natural", "bienestar", "medicina natural", "plantas medicinales"],
-        "keywords_largas": ["alivio natural tradicional", "remedios mexicanos para el bienestar", "hierbas que alivian"],
-        "ctr_potencial": 10.8
-    },
-    {
-        "tema": "secreto_ancestral",
-        "keywords_cortas": ["secreto", "ancestral", "herbolaria mexicana", "tradición"],
-        "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional mexicana", "herbolaria que pocos conocen"],
-        "ctr_potencial": 9.8
-    },
-    {
-        "tema": "como_usar",
-        "keywords_cortas": ["cómo usar", "cómo preparar", "tips de salud", "guía natural"],
-        "keywords_largas": ["cómo usar hierbas medicinales", "preparación tradicional de hierbas", "guía de herbolaria"],
-        "ctr_potencial": 9.0
-    },
+    {"tema": "beneficios_ocultos", "keywords_cortas": ["beneficios", "propiedades", "remedios naturales", "para qué sirve"], "keywords_largas": ["beneficios que no conocías", "propiedades medicinales de las hierbas", "remedios naturales efectivos"], "ctr_potencial": 9.2},
+    {"tema": "remedio_casero", "keywords_cortas": ["remedios caseros", "natural", "tradición", "hierbas medicinales"], "keywords_largas": ["remedios caseros efectivos", "tratamiento natural con hierbas", "remedios de la abuela"], "ctr_potencial": 9.5},
+    {"tema": "dato_cientifico", "keywords_cortas": ["ciencia", "estudio", "evidencia"], "keywords_largas": ["estudios sobre hierbas", "evidencia tradicional"], "ctr_potencial": 10.5},
+    {"tema": "alivio_natural", "keywords_cortas": ["alivio natural", "bienestar", "medicina natural", "plantas medicinales"], "keywords_largas": ["alivio natural tradicional", "remedios mexicanos para el bienestar", "hierbas que alivian"], "ctr_potencial": 10.8},
+    {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "herbolaria mexicana", "tradición"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional mexicana", "herbolaria que pocos conocen"], "ctr_potencial": 9.8},
 ]
 
 # ================================================================
@@ -309,10 +286,13 @@ def deberia_publicar_ahora(estado):
     if estado.get("publicaciones_hoy", 0) >= MAX_LARGOS_DIA:
         print("✅ Límite diario de videos largos alcanzado.")
         return False
+
+    # ⏰ Solo publicar dentro de la ventana 9:00-17:00 CDMX
     forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
     if not forzar and not (HORA_MIN_PUBLICAR <= ahora.hour < HORA_MAX_PUBLICAR):
         print(f"⏰ Fuera de ventana horaria ({ahora.hour}h CDMX). Solo publico entre {HORA_MIN_PUBLICAR}:00 y {HORA_MAX_PUBLICAR}:00.")
         return False
+
     ultima = estado.get("ultima_publicacion")
     if ultima:
         diff = (ahora - datetime.fromisoformat(ultima)).total_seconds() / 3600
@@ -380,14 +360,13 @@ def obtener_curiosidad_catalogo(ingrediente):
     return f"{elegida.get('titulo', '')} {elegida.get('dato_curioso', '')}".strip()
 
 # ================================================================
-# 🔥 INYECTOR DE KEYWORDS VIRALES
+# 🔥 MOTOR DE KEYWORDS VIRALES + TÍTULOS SEGUROS
 # ================================================================
 def obtener_keywords_aleatorias_virales(cantidad=5):
-    """Selecciona keywords virales aleatorias con peso (las de mayor peso tienen más probabilidad)."""
+    """Selecciona keywords virales ponderadas por peso de búsqueda."""
     todas = []
     for categoria, kws in KEYWORDS_VIRALES.items():
         todas.extend(kws)
-    # Selección ponderada por peso
     seleccionadas = []
     for _ in range(cantidad):
         if not todas:
@@ -398,109 +377,76 @@ def obtener_keywords_aleatorias_virales(cantidad=5):
         todas.remove(elegida)
     return seleccionadas
 
-def inyectar_keywords_en_titulo(titulo_original, ingrediente, problema=None):
-    """Reescribe el título inyectando keywords virales de alto volumen al inicio."""
-    # Si el título ya tiene keywords virales, lo deja pasar
-    keywords_virales_presentes = [
-        "remedios", "salud natural", "medicina natural", "hierbas",
-        "para qué sirve", "beneficios", "propiedades", "cómo usar",
-        "herbolaria", "plantas medicinales"
-    ]
-    titulo_lower = titulo_original.lower()
-    if any(kw in titulo_lower for kw in keywords_virales_presentes):
-        return titulo_original[:70]
+def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
+    """Sanitiza palabras prohibidas + inyecta keyword viral de alto volumen."""
+    t = re.sub(r'#\w+', '', (titulo_ia or "").strip()).strip()
+    lower = t.lower()
 
-    # Si no tiene, inyecta una keyword viral al inicio
-    problema_lower = (problema or "").lower()
-
-    # Elegir patrón según el problema/ingrediente
-    patrones_con_keyword = [
-        f"Para qué sirve el {ingrediente} en remedios naturales",
-        f"Beneficios del {ingrediente} en la herbolaria mexicana",
-        f"Remedios caseros con {ingrediente}: usos tradicionales",
-        f"Cómo usar el {ingrediente} como remedio natural",
-        f"Propiedades del {ingrediente} que pocos conocen",
-        f"{ingrediente}: hierbas medicinales para tu bienestar",
-        f"Medicina natural: el poder del {ingrediente}",
-        f"Salud natural: secretos del {ingrediente}",
-        f"Plantas medicinales: {ingrediente} y sus beneficios",
-        f"Remedios naturales con {ingrediente}: tradición mexicana",
-    ]
-
-    # Si hay un problema específico, úsalo en el título
-    if problema:
-        patrones_con_problema = [
-            f"Remedios naturales con {ingrediente} para {problema}",
-            f"{ingrediente}: hierba medicinal para {problema}",
-            f"Cómo usar {ingrediente} para {problema} (remedio casero)",
-            f"Para qué sirve el {ingrediente} en {problema}",
-            f"Medicina natural: {ingrediente} y {problema}",
-        ]
-        patrones_con_keyword.extend(patrones_con_problema)
-
-    nuevo_titulo = random.choice(patrones_con_keyword)
-    print(f"🔥 Keyword viral inyectada en título: {nuevo_titulo}")
-    return nuevo_titulo[:70]
-
-def sanitizar_titulo(titulo, ingrediente, problema=None):
-    """Si el título tiene palabras prohibidas, lo reemplaza con fórmula segura + keyword viral."""
-    lower = (titulo or "").lower()
+    # 1) Si tiene palabras prohibidas → reemplazo total
     if any(p in lower for p in PALABRAS_PROHIBIDAS_TITULO):
-        print(f"🛡️ Título con palabra prohibida detectada. Reemplazando con fórmula segura + keyword viral...")
-        return inyectar_keywords_en_titulo("", ingrediente, problema)
+        print("🛡️ Título con palabra prohibida → reemplazando por fórmula viral segura...")
+        t = ""
 
-    # Aunque no tenga prohibidas, inyecta keywords virales si le faltan
-    return inyectar_keywords_en_titulo(titulo, ingrediente, problema)
+    # 2) Si no tiene keyword viral → inyectar patrón de búsqueda al inicio
+    keywords_presentes = ["remedios", "salud natural", "medicina natural", "hierbas",
+                          "para qué sirve", "beneficios", "propiedades", "cómo usar",
+                          "herbolaria", "plantas medicinales", "remedio casero",
+                          "tradición", "sabías", "aliado", "apoya", "usos"]
+    if not t or not any(kw in t.lower() for kw in keywords_presentes):
+        patrones = [
+            f"Para qué sirve el {ingrediente} en remedios naturales",
+            f"Beneficios del {ingrediente} en la herbolaria mexicana",
+            f"Remedios caseros con {ingrediente}: usos tradicionales",
+            f"Cómo usar el {ingrediente} como remedio natural",
+            f"Propiedades del {ingrediente} que pocos conocen",
+            f"{ingrediente}: hierbas medicinales para tu bienestar",
+            f"Medicina natural: el poder del {ingrediente}",
+            f"Salud natural: secretos del {ingrediente}",
+            f"Plantas medicinales: {ingrediente} y sus beneficios",
+            f"Remedios naturales con {ingrediente}: tradición mexicana",
+            f"¿Sabías esto del {ingrediente}? Usos y beneficios",
+        ]
+        if problema:
+            patrones.extend([
+                f"Remedios naturales con {ingrediente} para {problema}",
+                f"{ingrediente}: hierba medicinal para {problema}",
+                f"Cómo usar {ingrediente} para {problema} (remedio casero)",
+                f"Para qué sirve el {ingrediente} en {problema}",
+            ])
+        t = random.choice(patrones)
+        print(f"🔥 Keyword viral inyectada en título: {t}")
+    return t[:70]
 
 def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
-    """Genera lista de tags virales optimizados para SEO."""
-    tags = []
-
-    # 1. Tags del ingrediente (obligatorios)
-    tags.append(ingrediente.lower())
-    tags.append(f"{ingrediente} beneficios")
-    tags.append(f"{ingrediente} propiedades")
-
-    # 2. Keywords virales generales (alto volumen)
-    keywords_virales = obtener_keywords_aleatorias_virales(5)
-    tags.extend(keywords_virales)
-
-    # 3. Keywords del tema viral
+    """Genera 20 tags optimizados con keywords de alto volumen."""
+    tags = [ingrediente.lower(), f"{ingrediente} beneficios", f"{ingrediente} propiedades"]
+    tags.extend(obtener_keywords_aleatorias_virales(6))
     if tema_viral:
         tags.extend(tema_viral.get("keywords_cortas", [])[:3])
         tags.extend(tema_viral.get("keywords_largas", [])[:2])
-
-    # 4. Si hay problema/síntoma, agregarlo
     if problema:
         tags.append(problema.lower())
         tags.append(f"remedios naturales para {problema.lower()}")
-
-    # 5. Hashtags virales obligatorios (sin #)
-    for ht in HASHTAGS_VIRALES[:5]:
+    for ht in HASHTAGS_VIRALES[:6]:
         tags.append(ht.replace("#", ""))
-
-    # 6. Limpiar duplicados y limitar a 20 tags
     tags_unicos = []
     for tag in tags:
         tag_limpio = tag.strip().lower()
         if tag_limpio and tag_limpio not in tags_unicos:
             tags_unicos.append(tag_limpio)
-
     return ", ".join(tags_unicos[:20])
 
 # ================================================================
-# 🤖 IA GENERA GUION
+# 🤖 IA GENERA GUION (SEO viral + políticas seguras)
 # ================================================================
 def ia_genera_guion_largo(producto, ingrediente, tema_viral):
     info_catalogo = obtener_info_ingrediente_catalogo(ingrediente) or "Sin ficha en catálogo; usa conocimiento general verificado."
     curiosidad = obtener_curiosidad_catalogo(ingrediente) or ""
     problema = producto.get('recomendado_para', '')
-
-    # Obtener keywords virales para el prompt
     keywords_virales_prompt = obtener_keywords_aleatorias_virales(8)
     prohibidas_str = ", ".join(f'"{p}"' for p in PALABRAS_PROHIBIDAS_TITULO[:40]) + "..."
 
-    prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (5 minutos, horizontal) OPTIMIZADOS para búsquedas virales.
+    prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (5 minutos, horizontal) OPTIMIZADOS para búsquedas virales y 100% SEGUROS ante las políticas de YouTube.
 
 📦 PRODUCTO COMPLETO:
 NOMBRE: {producto.get('nombre')}
@@ -513,16 +459,16 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
 🌱 INGREDIENTE ESTRELLA OBLIGATORIO (NO lo cambies): {ingrediente}
 📚 FICHA DEL CATÁLOGO DEL INGREDIENTE: {info_catalogo}
 💡 DATO CURIOSO DEL CATÁLOGO (úsalo en el hook o en un beneficio): {curiosidad}
-🎯 TEMA VIRAL DE ESTE VIDEO: {tema_viral['tema'].upper()}
-🔥 PROBLEMA QUE RESUELVE: {problema}
+🎯 TEMA VIRAL DE ESTE VIDEO: {tema_viral['tema'].upper()} (keywords: {', '.join(tema_viral['keywords_cortas'])})
+💊 PROBLEMA QUE RESUELVE: {problema}
 
-🔑 KEYWORDS VIRALES QUE DEBES USAR (alto volumen de búsqueda):
+🔑 KEYWORDS VIRALES DE ALTO VOLUMEN QUE DEBES USAR:
 {', '.join(keywords_virales_prompt)}
 
-🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~5 minutos):
-1. "hook" (45-55 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso si existe). INCLUYE una keyword viral ("remedios naturales", "hierbas medicinales" o "salud natural").
+🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~5 minutos reales):
+1. "hook" (45-55 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso). INCLUYE una keyword viral ("remedios naturales", "hierbas medicinales" o "salud natural").
 2. "problema" (85-100 palabras): El problema/síntoma que sufre la audiencia ({problema}).
-3. "ingrediente" (130-150 palabras): Presenta el ingrediente estrella, origen e historia breve. Menciona "herbolaria mexicana" o "medicina natural".
+3. "ingrediente" (130-150 palabras): Presenta el ingrediente estrella, origen e historia. Menciona "herbolaria mexicana" o "medicina natural".
 4. "beneficio_1" (90-105 palabras): Primer beneficio según la tradición herbal.
 5. "beneficio_2" (90-105 palabras): Segundo beneficio según la tradición herbal.
 6. "beneficio_3" (90-105 palabras): Tercer beneficio según la tradición herbal.
@@ -530,14 +476,14 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
 8. "cta" (165-190 palabras): Resumen + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
 
 REGLAS GENERALES:
-- Si el ingrediente suena a saborizante (ej: "Sabor Piña Natural"), habla del ingrediente REAL ("Piña").
+- Si el ingrediente suena a saborizante (ej: "Sabor Piña Natural"), habla del ingrediente REAL ("Piña") manteniendo coherencia con el producto.
 - NO digas números de WhatsApp/Telegram en el audio (solo la frase final del cta).
 - Tono educativo, cálido y cercano. Sin emojis en el texto hablado.
 - Incluye SIEMPRE un disclaimer natural: "esto es información educativa basada en la tradición herbolaria, no sustituye la consulta médica".
-- Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, imagen horizontal 16:9).
+- Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, imagen horizontal 16:9 del subtema).
 
-🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO — ESTO EVITA BANNEO):
-NUNCA uses en TÍTULO, GUION, NI DESCRIPCIÓN:
+🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO — ESTO EVITA BANNEO DEL CANAL):
+NUNCA uses en TÍTULO, GUION NI DESCRIPCIÓN:
 {prohibidas_str}
 
 TAMPOCO uses:
@@ -557,10 +503,10 @@ TAMPOCO uses:
 - "¿sabías que...?", "para qué sirve", "beneficios de", "propiedades de"
 
 📝 TÍTULO DEL VIDEO (MUY IMPORTANTE PARA SEO):
-El título DEBE contener al menos UNA de estas keywords virales al INICIO (primeras 3 palabras):
-- "Para qué sirve", "Beneficios de", "Remedios naturales", "Remedios caseros",
-- "Cómo usar", "Propiedades de", "Hierbas medicinales", "Medicina natural",
-- "Plantas medicinales", "Salud natural", "Herbolaria mexicana"
+DEBE contener al inicio (primeras 3 palabras) una keyword viral:
+"For qué sirve"/"Para qué sirve", "Beneficios de", "Remedios naturales", "Remedios caseros",
+"Cómo usar", "Propiedades de", "Hierbas medicinales", "Medicina natural",
+"Plantas medicinales", "Salud natural", "Herbolaria mexicana"
 
 Ejemplos de TÍTULOS VIRALES Y SEGUROS:
 - "Para qué sirve el Aloe Vera en remedios naturales"
@@ -571,8 +517,8 @@ Ejemplos de TÍTULOS VIRALES Y SEGUROS:
 
 Devuelve ESTRICTAMENTE este JSON:
 {{
-  "ingrediente_real": "nombre real normalizado del ingrediente (ej: Piña)",
-  "titulo": "Título SEO viral con keyword al inicio (máx 70 chars, SIN hashtags)",
+  "ingrediente_real": "nombre real normalizado del ingrediente para voz y búsqueda de imágenes (ej: Piña)",
+  "titulo": "Título SEO viral con keyword al inicio (máx 70 chars, SIN hashtags, 100% seguro)",
   "segmentos": {{
     "hook": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "problema": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
@@ -583,14 +529,14 @@ Devuelve ESTRICTAMENTE este JSON:
     "producto": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "cta": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}}
   }},
-  "tags": "NO generes tags, se generarán automáticamente",
-  "gancho_descripcion": "Gancho SEO con keywords virales (máx 90 chars)",
+  "tags": "NO generes tags, se generan automáticamente",
+  "gancho_descripcion": "Gancho SEO con keyword viral (máx 90 caracteres)",
   "contexto_descripcion": "1-2 oraciones educativas con keywords naturales"
 }}"""
 
     for intento in range(5):
         try:
-            print(f"🤖 IA escribiendo guion de 5 min... (intento {intento+1}/5)")
+            print(f"🤖 IA escribiendo guion de 5 min con SEO viral... (intento {intento+1}/5)")
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
@@ -613,14 +559,14 @@ Devuelve ESTRICTAMENTE este JSON:
             data["ingrediente_real"] = data.get("ingrediente_real") or ingrediente
 
             # 🔥 SANITIZAR + INYECTAR KEYWORDS VIRALES AL TÍTULO
-            data["titulo"] = sanitizar_titulo(data.get("titulo"), data["ingrediente_real"], problema)
+            data["titulo"] = optimizar_titulo_largo(data.get("titulo"), data["ingrediente_real"], problema)
 
             # 🔥 GENERAR TAGS VIRALES AUTOMÁTICAMENTE
             data["tags"] = generar_tags_virales(data["ingrediente_real"], problema, tema_viral)
 
             print(f"✅ Guion listo. Ingrediente real: {data['ingrediente_real']}")
             print(f"🔥 Título SEO: {data.get('titulo')}")
-            print(f"🏷️ Tags virales: {data.get('tags')[:80]}...")
+            print(f"🏷️ Tags virales: {data.get('tags')[:90]}...")
             return data
         except Exception as e:
             print(f"⚠️ Intento {intento+1} falló: {e}")
@@ -770,7 +716,7 @@ def crear_overlay_aviso(salida="aviso_overlay.png"):
         return None
 
 # ================================================================
-# 🎬 KEN BURNS
+# 🎬 KEN BURNS (COMPATIBLE CON MOVIEPY 1.0.3)
 # ================================================================
 def efecto_ken_burns(img_path, duracion, direccion="in"):
     clip = ImageClip(img_path).set_duration(duracion)
@@ -823,6 +769,7 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
 
     video = video.set_audio(audio_final)
 
+    # Overlays: aviso legal (inicio) + CTA (final)
     clips_overlays = [video]
     aviso = crear_overlay_aviso()
     if aviso:
@@ -842,70 +789,185 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     return salida
 
 # ================================================================
-# 🖼️ MINIATURA V2 (Alto CTR)
+# 🖼️ THUMBNAIL ENGINE V3 (estilo viral: texto gigante + banners + producto)
 # ================================================================
-def crear_miniatura_larga(img_base, url_producto, texto, salida="thumb_largo.jpg"):
+FONT_THUMB_URL = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
+FONT_THUMB_LOCAL = "Anton-Regular.ttf"
+
+def asegurar_fuente_thumbnail():
+    """Descarga una vez la fuente Anton (gratis, licencia OFL)."""
+    if os.path.exists(FONT_THUMB_LOCAL):
+        return FONT_THUMB_LOCAL
     try:
-        with Image.open(img_base) as bg:
-            bg = ImageOps.fit(bg.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS)
-            bg = ImageEnhance.Color(bg).enhance(1.35)
-            bg = ImageEnhance.Brightness(bg).enhance(1.12)
-            bg = ImageEnhance.Contrast(bg).enhance(1.15)
-            bg = bg.convert("RGBA")
-            capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
-            d = ImageDraw.Draw(capa)
-            for x in range(0, 780):
-                a = int(215 * (1 - x / 780))
-                d.line([(x, 0), (x, 720)], fill=(0, 0, 0, a))
-            palabras = [p for p in re.sub(r'[^\w\sáéíóúñÁÉÍÓÚÑ]', '', texto).split() if len(p) > 2][:4]
-            frase = " ".join(palabras).upper()
-            size = 132
-            font = ImageFont.truetype(FUENTE, size)
-            while size > 58 and d.textbbox((0, 0), frase, font=font)[2] > 690:
-                size -= 6
-                font = ImageFont.truetype(FUENTE, size)
-            lineas = [frase]
-            if d.textbbox((0, 0), frase, font=font)[2] > 690:
-                mid = len(frase) // 2
-                idx = frase.rfind(' ', 0, mid + 12)
-                if idx > 0:
-                    lineas = [frase[:idx], frase[idx+1:]]
-            y = 300 - (len(lineas) - 1) * int(size * 0.62)
-            for ln in lineas:
-                d.text((60, y), ln, font=font, fill=(255, 214, 102, 255),
-                       stroke_width=7, stroke_fill=(0, 0, 0, 255))
-                y += int(size * 1.16)
-            fb = ImageFont.truetype(FUENTE, 32)
-            badge = "HERBOLARIA TRADICIONAL"
-            bw = d.textbbox((0, 0), badge, font=fb)[2]
-            d.rounded_rectangle([(60, 606), (60 + bw + 48, 668)], radius=31, fill=(198, 40, 40, 235))
-            d.text((84, 620), badge, font=fb, fill=(255, 255, 255, 255))
-            bg = Image.alpha_composite(bg, capa)
-            try:
-                rp = requests.get(url_producto, timeout=20, verify=False)
-                prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
-                try: prod = remove(prod)
-                except Exception: pass
-                ph = 620
-                prod = prod.resize((int(prod.width * (ph / prod.height)), ph), Image.Resampling.LANCZOS)
-                gx = 1280 - prod.width - 40
-                gy = (720 - ph) // 2
-                halo = Image.new("RGBA", bg.size, (0, 0, 0, 0))
-                hd = ImageDraw.Draw(halo)
-                hd.ellipse([gx - 50, gy + ph * 0.5, gx + prod.width + 50, gy + ph + 70], fill=(255, 255, 255, 110))
-                halo = halo.filter(ImageFilter.GaussianBlur(35))
-                bg = Image.alpha_composite(bg, halo)
-                bg.paste(prod, (gx, gy), prod)
-            except Exception: pass
-            bg.convert("RGB").save(salida, "JPEG", quality=92)
-            print(f"✅ Miniatura v2 creada: {salida}")
+        r = requests.get(FONT_THUMB_URL, timeout=30)
+        r.raise_for_status()
+        with open(FONT_THUMB_LOCAL, "wb") as f:
+            f.write(r.content)
+        print("✅ Fuente Anton descargada para miniaturas")
+        return FONT_THUMB_LOCAL
+    except Exception:
+        print("⚠️ No se pudo descargar Anton, usando DejaVu")
+        return FUENTE
+
+def _medir(texto, font, stroke=0):
+    d = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
+    return d.textbbox((0, 0), texto, font=font, stroke_width=stroke)
+
+def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90), bottom=(255, 150, 0)):
+    """Texto GIGANTE con degradado amarillo→naranja y contorno negro."""
+    font = ImageFont.truetype(font_path, size)
+    b = _medir(texto, font, stroke)
+    w = (b[2] - b[0]) + stroke * 2 + 8
+    h = (b[3] - b[1]) + stroke * 2 + 8
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(out)
+    ox, oy = stroke + 4 - b[0], stroke + 4 - b[1]
+    d.text((ox, oy), texto, font=font, fill=(10, 10, 10, 255), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
+    grad = np.zeros((h, w, 4), dtype=np.uint8)
+    t = np.linspace(0, 1, h)[:, None]
+    grad[:, :, :3] = (np.array(top, float) * (1 - t) + np.array(bottom, float) * t).astype(np.uint8)
+    grad[:, :, 3] = 255
+    grad_img = Image.fromarray(grad, "RGBA")
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).text((ox, oy), texto, font=font, fill=255)
+    grad_img.putalpha(mask)
+    return Image.alpha_composite(out, grad_img)
+
+def render_texto_solido(texto, font_path, size, fill=(255, 255, 255), stroke=8):
+    font = ImageFont.truetype(font_path, size)
+    b = _medir(texto, font, stroke)
+    w = (b[2] - b[0]) + stroke * 2 + 8
+    h = (b[3] - b[1]) + stroke * 2 + 8
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(img).text((stroke + 4 - b[0], stroke + 4 - b[1]), texto, font=font,
+                             fill=fill + (255,), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
+    return img
+
+def render_banner(texto, font_path, size, bg=(198, 30, 30), fg=(255, 255, 255), borde=(255, 235, 59), pad_x=28, pad_y=12):
+    """Caja redondeada de color con texto (banner rojo/verde estilo viral)."""
+    font = ImageFont.truetype(font_path, size)
+    b = _medir(texto, font)
+    tw, th = b[2] - b[0], b[3] - b[1]
+    w = tw + pad_x * 2 + 8
+    h = th + pad_y * 2 + 8
+    img = Image.new("RGBA", (w + 14, h + 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([7, 10, w + 7, h + 10], radius=14, fill=(0, 0, 0, 140))
+    d.rounded_rectangle([7, 6, w + 7, h + 6], radius=14, fill=bg + (255,), outline=borde + (255,), width=4)
+    d.text((7 + pad_x - b[0], 6 + pad_y - b[1]), texto, font=font, fill=fg + (255,))
+    return img
+
+def _fit(texto, font_path, size_max, size_min, ancho_max, renderer, **kw):
+    size = size_max
+    while size > size_min:
+        img = renderer(texto, font_path, size, **kw)
+        if img.width <= ancho_max:
+            return img
+        size -= 6
+    return renderer(texto, font_path, size_min, **kw)
+
+def buscar_fondo_ia_pollinations(query, salida="bg_ia.jpg"):
+    """Fondo dramático GRATIS sin API key (Pollinations/Flux). Devuelve None si falla."""
+    try:
+        prompt = urllib.parse.quote(f"{query}, dramatic macro photography, vivid saturated colors, cinematic lighting, professional youtube thumbnail background, no text, no watermark")
+        url = f"https://image.pollinations.ai/prompt/{prompt}?width=1280&height=720&nologo=true&model=flux"
+        r = requests.get(url, timeout=75)
+        if r.status_code == 200 and len(r.content) > 20000:
+            with open(salida, "wb") as f:
+                f.write(r.content)
+            print("✅ Fondo IA gratis generado (Pollinations)")
             return salida
     except Exception as e:
-        print(f"⚠️ Error miniatura v2: {e}")
+        print(f"⚠️ Pollinations falló, usando Pexels: {e}")
+    return None
+
+def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_seguro, salida="thumb_largo.jpg"):
+    """Miniatura estilo viral: ingrediente gigante + PARA + banners de beneficio + producto con halo."""
+    try:
+        fuente = asegurar_fuente_thumbnail()
+        with Image.open(img_base) as bgf:
+            bg = ImageOps.fit(bgf.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS)
+        bg = ImageEnhance.Color(bg).enhance(1.45)
+        bg = ImageEnhance.Contrast(bg).enhance(1.22)
+        bg = ImageEnhance.Brightness(bg).enhance(1.05)
+        bg = bg.convert("RGBA")
+
+        # Degradado lateral + inferior para que el texto resalte
+        capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+        d = ImageDraw.Draw(capa)
+        for x in range(0, 880):
+            d.line([(x, 0), (x, 720)], fill=(0, 0, 0, int(200 * (1 - x / 880))))
+        for y in range(540, 720):
+            d.line([(0, y), (1280, y)], fill=(0, 0, 0, int(140 * ((y - 540) / 180))))
+        bg = Image.alpha_composite(bg, capa)
+
+        # ---- Bloques de texto ----
+        bloques = []
+        linea1 = (" ".join(ingrediente.split()[:2]) or "REMEDIOS NATURALES").upper()
+        bloques.append(_fit(linea1, fuente, 150, 64, 780, render_texto_gradiente))
+        bloques.append(render_texto_solido("PARA", fuente, 56))
+
+        partes = [p.strip() for p in (problema or "").split(",") if p.strip()]
+        if not partes:
+            palabras = [p for p in re.sub(r'[^\w\sáéíóúñÁÉÍÓÚÑ]', '', titulo_seguro).split() if len(p) > 3]
+            partes = [" ".join(palabras[:4])] if palabras else ["BIENESTAR NATURAL"]
+        b1, b2 = [], []
+        for p in partes:
+            if not b2 and len(" ".join(b1 + [p])) <= 30:
+                b1.append(p)
+            else:
+                b2.append(p)
+        bloques.append(_fit(" ".join(b1).upper(), fuente, 74, 40, 740, render_banner, bg=(198, 30, 30)))
+        if b2:
+            bloques.append(_fit(("Y " + " ".join(b2)).upper(), fuente, 74, 40, 740,
+                                render_banner, bg=(20, 90, 40), borde=(255, 255, 255)))
+
+        # Pegado con inclinación ligera (dinamismo)
+        y = 28
+        for img_bloque in bloques:
+            rot = img_bloque.rotate(2, expand=True, resample=Image.BICUBIC)
+            bg.paste(rot, (46, y), rot)
+            y += rot.height + 8
+            if y > 545:
+                break
+
+        # ---- Producto recortado con halo ----
+        try:
+            rp = requests.get(url_producto, timeout=20, verify=False)
+            prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
+            try:
+                prod = remove(prod)
+            except Exception:
+                pass
+            ph = 600
+            prod = prod.resize((max(1, int(prod.width * (ph / prod.height))), ph), Image.Resampling.LANCZOS)
+            gx = 1280 - prod.width - 30
+            gy = (720 - ph) // 2 - 20
+            halo = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+            ImageDraw.Draw(halo).ellipse([gx - 60, gy + ph * 0.45, gx + prod.width + 60, gy + ph + 80],
+                                         fill=(255, 255, 255, 120))
+            halo = halo.filter(ImageFilter.GaussianBlur(40))
+            bg = Image.alpha_composite(bg, halo)
+            bg.paste(prod, (gx, gy), prod)
+        except Exception as e:
+            print(f"⚠️ Producto en miniatura: {e}")
+
+        # ---- Barra inferior con título seguro ----
+        bar = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+        db = ImageDraw.Draw(bar)
+        db.rectangle([(0, 648), (1280, 720)], fill=(0, 0, 0, 175))
+        db.text((40, 664), titulo_seguro.upper()[:64], font=ImageFont.truetype(fuente, 40), fill=(255, 214, 102, 255))
+        bg = Image.alpha_composite(bg, bar)
+
+        bg.convert("RGB").save(salida, "JPEG", quality=93)
+        print(f"✅ Miniatura V3 estilo viral creada: {salida}")
+        return salida
+    except Exception as e:
+        print(f"⚠️ Error miniatura V3: {e}")
         return None
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE
+# 📤 SUBIR A YOUTUBE (SEO viral + token auto-refresh)
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -940,7 +1002,6 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     creds = obtener_credenciales_youtube()
     youtube = build("youtube", "v3", credentials=creds)
 
-    # 🔥 DESCRIPCIÓN OPTIMIZADA CON KEYWORDS VIRALES
     hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
@@ -970,7 +1031,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 🔗 Canal: {CANAL_LINK}
 📘 Facebook: {FACEBOOK_LINK}
 
-🔍 Búsquedas relacionadas: remedios naturales, remedios caseros, salud natural, medicina natural, herbolaria mexicana, hierbas medicinales, plantas medicinales, tips de salud, bienestar natural, tradición mexicana
+🔍 Búsquedas relacionadas: remedios naturales, remedios caseros, salud natural, medicina natural, herbolaria mexicana, hierbas medicinales, plantas medicinales, tips de salud, bienestar natural, tradición mexicana, para qué sirve, beneficios de, propiedades de, cómo usar
 
 {hashtags_str} #{ingrediente.replace(' ', '')}"""
 
@@ -985,13 +1046,13 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
     response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
     video_id = response["id"]
-    print(f"✅ Video largo subido: https://youtu.be/{video_id}")
+    print(f"✅ Video largo subido con SEO viral: https://youtu.be/{video_id}")
 
     if thumb_path and os.path.exists(thumb_path):
         try:
             mt = MediaFileUpload(thumb_path, chunksize=-1, resumable=True, mimetype="image/jpeg")
             youtube.thumbnails().set(videoId=video_id, media_body=mt).execute()
-            print("✅ Miniatura personalizada subida")
+            print("✅ Miniatura V3 personalizada subida")
         except Exception as e:
             print(f"⚠️ Error miniatura: {e}")
 
@@ -1003,7 +1064,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 # ================================================================
 def main():
     print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~5 min)")
-    print(f"🔥 SEO VIRAL ACTIVO - Keywords de alto volumen inyectadas")
+    print("🔥 SEO VIRAL ACTIVO + Miniaturas estilo canal grande + Blindaje anti-baneo")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     estado = cargar_estado()
@@ -1051,7 +1112,11 @@ def main():
         segmentos_img.append({"img_path": img_path, "audio_path": audio_path})
 
     video_path = montar_video_largo(segmentos_img)
-    thumb = crear_miniatura_larga("img_largo_2.jpg", producto["imagen_url"], guion["titulo"])
+
+    # 🖼️ Miniatura V3: fondo IA gratis (Pollinations) o fallback Pexels
+    base_thumb = buscar_fondo_ia_pollinations(f"{ingrediente_hablado} plant natural vivid") or "img_largo_2.jpg"
+    thumb = crear_miniatura_larga(base_thumb, producto["imagen_url"], ingrediente_hablado, problema, guion["titulo"])
+
     video_id = subir_video_largo(video_path, thumb, guion["titulo"], guion["tags"],
                                  guion["gancho_descripcion"], guion["contexto_descripcion"],
                                  ingrediente_hablado, problema)
@@ -1065,7 +1130,7 @@ def main():
     print(f"\n🎉 VIDEO LARGO PUBLICADO CON SEO VIRAL: https://youtu.be/{video_id}")
 
     for f in os.listdir("."):
-        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg"):
+        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg"):
             try: os.remove(f)
             except Exception: pass
 
