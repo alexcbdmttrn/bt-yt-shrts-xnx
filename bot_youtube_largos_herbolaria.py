@@ -854,7 +854,7 @@ def buscar_fondo_ia_flux(query, salida="bg_ia.jpg", intentos=3):
     return None
 
 # ================================================================
-# 🖼️ THUMBNAIL ENGINE V3 (estilo viral: texto gigante + banners + producto)
+# 🖼️ THUMBNAIL ENGINE V3 (CORREGIDO + ANTI-FRÁGIL)
 # ================================================================
 FONT_THUMB_URL = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
 FONT_THUMB_LOCAL = "Anton-Regular.ttf"
@@ -879,7 +879,7 @@ def _medir(texto, font, stroke=0):
     return d.textbbox((0, 0), texto, font=font, stroke_width=stroke)
 
 def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90), bottom=(255, 150, 0)):
-    """Texto GIGANTE con degradado amarillo→naranja y contorno negro."""
+    """Texto GIGANTE con degradado amarillo→naranja y contorno negro (CORREGIDO)."""
     font = ImageFont.truetype(font_path, size)
     b = _medir(texto, font, stroke)
     w = (b[2] - b[0]) + stroke * 2 + 8
@@ -888,10 +888,14 @@ def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90)
     d = ImageDraw.Draw(out)
     ox, oy = stroke + 4 - b[0], stroke + 4 - b[1]
     d.text((ox, oy), texto, font=font, fill=(10, 10, 10, 255), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
+
+    # ✅ FIX NUMPY: gradiente con broadcast correcto (h,3) → (h,w,3)
     grad = np.zeros((h, w, 4), dtype=np.uint8)
     t = np.linspace(0, 1, h)[:, None]
-    grad[:, :, :3] = (np.array(top, float) * (1 - t) + np.array(bottom, float) * t).astype(np.uint8)
+    grad_rgb = (np.array(top, float) * (1 - t) + np.array(bottom, float) * t).astype(np.uint8)
+    grad[:, :, :3] = np.broadcast_to(grad_rgb[:, None, :], (h, w, 3))
     grad[:, :, 3] = 255
+
     grad_img = Image.fromarray(grad, "RGBA")
     mask = Image.new("L", (w, h), 0)
     ImageDraw.Draw(mask).text((ox, oy), texto, font=font, fill=255)
@@ -932,7 +936,7 @@ def _fit(texto, font_path, size_max, size_min, ancho_max, renderer, **kw):
     return renderer(texto, font_path, size_min, **kw)
 
 def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_seguro, salida="thumb_largo.jpg"):
-    """Miniatura estilo viral: ingrediente gigante + PARA + banners de beneficio + producto con halo."""
+    """Miniatura V3 anti-frágil: fondo + textos izquierda + producto SIN fondo a la derecha."""
     try:
         fuente = asegurar_fuente_thumbnail()
         with Image.open(img_base) as bgf:
@@ -951,10 +955,14 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
             d.line([(0, y), (1280, y)], fill=(0, 0, 0, int(140 * ((y - 540) / 180))))
         bg = Image.alpha_composite(bg, capa)
 
-        # ---- Bloques de texto ----
+        # ---- Bloques de texto (con fallback si el degradado falla) ----
         bloques = []
         linea1 = (" ".join(ingrediente.split()[:2]) or "REMEDIOS NATURALES").upper()
-        bloques.append(_fit(linea1, fuente, 150, 64, 780, render_texto_gradiente))
+        try:
+            bloques.append(_fit(linea1, fuente, 150, 64, 780, render_texto_gradiente))
+        except Exception as e:
+            print(f"⚠️ Degradado falló ({e}); usando texto sólido amarillo")
+            bloques.append(_fit(linea1, fuente, 150, 64, 780, render_texto_solido, fill=(255, 214, 102)))
         bloques.append(render_texto_solido("PARA", fuente, 56))
 
         partes = [p.strip() for p in (problema or "").split(",") if p.strip()]
@@ -972,21 +980,24 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
             bloques.append(_fit(("Y " + " ".join(b2)).upper(), fuente, 74, 40, 740,
                                 render_banner, bg=(20, 90, 40), borde=(255, 255, 255)))
 
-        # Pegado con inclinación ligera (dinamismo)
         y = 28
         for img_bloque in bloques:
-            rot = img_bloque.rotate(2, expand=True, resample=Image.BICUBIC)
-            bg.paste(rot, (46, y), rot)
-            y += rot.height + 8
+            try:
+                rot = img_bloque.rotate(2, expand=True, resample=Image.BICUBIC)
+                bg.paste(rot, (46, y), rot)
+                y += rot.height + 8
+            except Exception as e:
+                print(f"⚠️ Bloque de texto falló: {e}")
             if y > 545:
                 break
 
-        # ---- Producto recortado con halo ----
+        # ---- PRODUCTO recortado con halo (bloque independiente: SIEMPRE se ejecuta) ----
         try:
             rp = requests.get(url_producto, timeout=20, verify=False)
             prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
             try:
                 prod = remove(prod)
+                print("   ✂️ Fondo del producto eliminado para miniatura")
             except Exception:
                 pass
             ph = 600
@@ -999,8 +1010,9 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
             halo = halo.filter(ImageFilter.GaussianBlur(40))
             bg = Image.alpha_composite(bg, halo)
             bg.paste(prod, (gx, gy), prod)
+            print("   ✅ Producto pegado a la derecha de la miniatura")
         except Exception as e:
-            print(f"⚠️ Producto en miniatura: {e}")
+            print(f"⚠️ Producto en miniatura falló: {e}")
 
         # ---- Barra inferior con título seguro ----
         bar = Image.new("RGBA", bg.size, (0, 0, 0, 0))
