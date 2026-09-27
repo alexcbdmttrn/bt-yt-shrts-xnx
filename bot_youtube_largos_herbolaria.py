@@ -42,8 +42,9 @@ CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 
 WHATSAPP_NUMBER = "+52 3123395334"
+TELEFONO_NUMBER = "3123395334"
 TELEGRAM_BOT = "@alex_xanax_bot"
-TELEGRAM_PASSWORD = "Prueba20Dias"  # Contraseña temporal del bot
+TELEGRAM_PASSWORD = "A"  # Contraseña del bot de Telegram
 CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
 FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
@@ -1045,12 +1046,14 @@ def obtener_credenciales_youtube():
     return creds
 
 def fijar_comentario_contacto(youtube, video_id):
+    """Fija un comentario con los contactos + contraseña del bot."""
     try:
         texto = (
-            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n"
+            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n\n"
             f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
+            f"📞 Teléfono: {TELEFONO_NUMBER}\n"
             f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
-            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}\n"
+            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}\n\n"
             "👇 Coméntame qué remedio natural quieres que investiguemos en el próximo video."
         )
         youtube.commentThreads().insert(
@@ -1058,7 +1061,7 @@ def fijar_comentario_contacto(youtube, video_id):
             body={"snippet": {"videoId": video_id,
                               "topLevelComment": {"snippet": {"textOriginal": texto}}}}
         ).execute()
-        print("✅ Comentario de contacto publicado")
+        print("✅ Comentario de contacto publicado (con contraseña)")
     except Exception as e:
         print(f"⚠️ Error comentario: {e}")
 
@@ -1069,14 +1072,14 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
-    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT
+    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT (MISMO ESTILO QUE SHORTS)
     descripcion = f"""{gancho}
 
 {contexto}
 
 📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
 💬 WhatsApp: {WHATSAPP_NUMBER}
-📞 Teléfono: 3123395334
+📞 Teléfono: {TELEFONO_NUMBER}
 🤖 Asistente Inteligente: {TELEGRAM_BOT}
 🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}
 {problema_str}
@@ -1201,6 +1204,10 @@ def main():
     guardar_estado(estado)
 
     print(f"\n🎉 VIDEO LARGO PUBLICADO CON SEO VIRAL: https://youtu.be/{video_id}")
+    print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
+    print(f"   📞 Teléfono: {TELEFONO_NUMBER}")
+    print(f"   🤖 Telegram: {TELEGRAM_BOT}")
+    print(f"   🔑 Contraseña del bot: {TELEGRAM_PASSWORD}")
 
     for f in os.listdir("."):
         if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg", "bg_pexels.jpg"):
