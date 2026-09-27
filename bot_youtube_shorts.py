@@ -1,4 +1,5 @@
 import asyncio
+import base64
 from datetime import datetime
 import json
 import os
@@ -35,6 +36,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 YOUTUBE_USER_TOKEN = json.loads(os.getenv("YOUTUBE_USER_TOKEN")) if os.getenv("YOUTUBE_USER_TOKEN") else {}
+
+# 🎨 Keys para Flux (Cloudflare prioritario en imágenes de escenas)
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 
 WHATSAPP_NUMBER = "+52 3123395334"
 TELEFONO_NUMBER = "3123395334"
@@ -440,24 +445,18 @@ def optimizar_titulo_short(titulo_ia, ingrediente, problema=None):
 def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
     """Genera 15 tags optimizados con keywords de alto volumen."""
     tags = []
-    # Ingrediente
     tags.append(ingrediente.lower())
     tags.append(f"{ingrediente} beneficios")
     tags.append(f"{ingrediente} propiedades")
-    # Keywords virales ponderadas
     tags.extend(obtener_keywords_aleatorias_virales(5))
-    # Keywords del tema
     if tema_viral:
         tags.extend(tema_viral.get("keywords_cortas", [])[:3])
         tags.extend(tema_viral.get("keywords_largas", [])[:2])
-    # Síntoma/problema
     if problema:
         tags.append(problema.lower())
         tags.append(f"remedios naturales para {problema.lower()}")
-    # Hashtags sin #
     for ht in HASHTAGS_VIRALES[:5]:
         tags.append(ht.replace("#", ""))
-    # Limpiar duplicados
     tags_unicos = []
     for tag in tags:
         tag_limpio = tag.strip().lower()
@@ -508,7 +507,7 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
     "descripcion_corta": "Descripción SEO con keywords virales (máx 120 caracteres)",
     "gancho_descripcion": "Gancho inicial con keyword viral (máx 90 caracteres)",
     "contexto_descripcion": "Contexto educativo con keywords naturales (1 oración)",
-    "query_pexels": "Query en inglés para imagen del ingrediente en Pexels (ej: 'pineapple fruit fresh healthy')"
+    "query_pexels": "Query en inglés para imagen del ingrediente (descripción visual vertical, ej: 'pineapple fruit fresh healthy')"
 }}
 
 ⚠️ REGLAS CRÍTICAS:
@@ -592,7 +591,7 @@ Ejemplos de TÍTULOS VIRALES Y SEGUROS:
             time.sleep(5)
 
 # ================================================================
-# 🖼️ IMÁGENES Y VIDEO
+# 🖼️ IMÁGENES: PEXELS VERTICAL (fallback)
 # ================================================================
 def buscar_imagen_pexels_salud(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -609,6 +608,69 @@ def buscar_imagen_pexels_salud(query, intentos=3):
         except: pass
     return "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1080&h=1920&fit=crop"
 
+def _descargar_imagen_vertical(url, salida):
+    r = requests.get(url, timeout=20)
+    r.raise_for_status()
+    img = Image.open(io.BytesIO(r.content))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    img = ImageOps.fit(img, (1080, 1920), Image.Resampling.LANCZOS)
+    img.save(salida, "JPEG", quality=90)
+    return salida
+
+# ================================================================
+# 🎨 IMÁGENES DE ESCENAS: FLUX CLOUDFLARE (3 intentos) → PEXELS
+# ================================================================
+SEGMENTO_FLUX_SUFFIX_SHORT = (", photorealistic photography, natural lighting, vivid saturated colors, "
+                              "cinematic composition, botanical and herbal theme, shallow depth of field, "
+                              "no text, no watermark, no people, vertical portrait 9:16")
+
+def _flux_cloudflare_imagen_short(query, salida):
+    """Genera UNA imagen vertical con Flux vía Cloudflare Workers AI. Lanza excepción si falla."""
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+    headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
+    payload = {"prompt": query + SEGMENTO_FLUX_SUFFIX_SHORT, "width": 1080, "height": 1920, "steps": 4}
+    r = requests.post(url, headers=headers, json=payload, timeout=90)
+    r.raise_for_status()
+    data = r.json()
+    b64 = (data.get("result") or {}).get("image")
+    if not b64:
+        raise ValueError(f"Cloudflare no devolvió imagen: {str(data)[:200]}")
+    with open(salida, "wb") as f:
+        f.write(base64.b64decode(b64))
+    with Image.open(salida) as im:
+        im = ImageOps.fit(im.convert("RGB"), (1080, 1920), Image.Resampling.LANCZOS)
+        im.save(salida, "JPEG", quality=90)
+    return salida
+
+def buscar_imagen_segmento_short(query_en, salida):
+    """PRIORIDAD: Flux Cloudflare (hasta 3 intentos). Si falla → Pexels vertical. Nunca deja sin imagen."""
+    if CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID:
+        for intento in range(1, 4):
+            try:
+                print(f"   🎨 Flux Short intento {intento}/3...")
+                _flux_cloudflare_imagen_short(query_en, salida)
+                print(f"   ✅ Imagen de Short generada con Flux (Cloudflare)")
+                return salida
+            except Exception as e:
+                print(f"   ⚠️ Flux Short intento {intento} falló: {e}")
+                time.sleep(2)
+        print("   ⚠️ Flux falló tras 3 intentos en esta escena. Usando Pexels.")
+    else:
+        print("   ⚠️ Sin keys de Cloudflare configuradas. Usando Pexels para la escena.")
+
+    # ---- Fallback Pexels vertical ----
+    url_img = buscar_imagen_pexels_salud(query_en)
+    if url_img:
+        try:
+            return _descargar_imagen_vertical(url_img, salida)
+        except Exception as e:
+            print(f"   ⚠️ Pexels falló ({e}). Usando imagen por defecto.")
+    return _descargar_imagen_vertical("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1080&h=1920&fit=crop", salida)
+
+# ================================================================
+# 🎤 AUDIO + OVERLAYS
+# ================================================================
 async def generar_audio(texto, path):
     texto_limpio = re.sub(r'[^\w\sáéíóúüñÁÉÍÓÚÜÑ0-9\s.,;:!?¿¡\'\"]', '', texto)
     try:
@@ -657,7 +719,10 @@ def crear_overlay_aviso(salida="aviso_overlay.png"):
         print(f"⚠️ Error overlay aviso: {e}")
         return None
 
-def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, ingrediente):
+# ================================================================
+# 🎥 CREAR VIDEO SHORT (2 escenas con imágenes Flux/Pexels locales)
+# ================================================================
+def crear_video_con_dos_imagenes_y_texto(guion, img_ingrediente_path, url_producto, ingrediente, bg_producto_path):
     print("🎬 Renderizando Short con 2 escenas + overlays...")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -675,24 +740,30 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
 
     clips_video = []
 
-    # ESCENA 1: Ingrediente
+    # ESCENA 1: Ingrediente (imagen local generada con Flux o Pexels)
     try:
-        r = requests.get(url_ingrediente, timeout=15)
-        img = Image.open(io.BytesIO(r.content)).convert("RGB").resize((1080, 1920))
+        img = ImageOps.fit(Image.open(img_ingrediente_path).convert("RGB"), (1080, 1920), Image.Resampling.LANCZOS)
         img.save("temp_ingrediente.jpg")
         video_ingrediente = ImageClip("temp_ingrediente.jpg").set_duration(duracion_seg1)
         video_ingrediente = video_ingrediente.resize(lambda t: 1 + 0.03 * (t / duracion_seg1))
         clips_video.append(video_ingrediente)
-        print("✅ Escena 1: Imagen del ingrediente cargada")
+        print("✅ Escena 1: Imagen del ingrediente cargada (Flux/Pexels)")
     except Exception as e:
-        print(f"⚠️ Error con imagen de ingrediente: {e}")
+        print(f"⚠️ Error con imagen de ingrediente: {e}. Reintentando con Pexels directo...")
+        try:
+            url_alt = buscar_imagen_pexels_salud(ingrediente)
+            _descargar_imagen_vertical(url_alt, "temp_ingrediente.jpg")
+            video_ingrediente = ImageClip("temp_ingrediente.jpg").set_duration(duracion_seg1)
+            video_ingrediente = video_ingrediente.resize(lambda t: 1 + 0.03 * (t / duracion_seg1))
+            clips_video.append(video_ingrediente)
+            print("✅ Escena 1: Imagen de respaldo cargada")
+        except Exception as e2:
+            print(f"❌ Escena 1 imposible: {e2}")
 
-    # ESCENA 2: Producto RECORTADO sobre fondo
+    # ESCENA 2: Producto RECORTADO sobre fondo (Flux/Pexels local)
     try:
         print("   🎨 Preparando escena del producto recortado...")
-        url_fondo = buscar_imagen_pexels_salud(f"{ingrediente} natural healthy background")
-        r_fondo = requests.get(url_fondo, timeout=15)
-        fondo = Image.open(io.BytesIO(r_fondo.content)).convert("RGB").resize((1080, 1920))
+        fondo = ImageOps.fit(Image.open(bg_producto_path).convert("RGB"), (1080, 1920), Image.Resampling.LANCZOS)
         r_prod = requests.get(url_producto, timeout=15, verify=False)
         img_prod_original = Image.open(io.BytesIO(r_prod.content)).convert("RGBA")
         print("   ✂️ Eliminando fondo del producto automáticamente...")
@@ -710,7 +781,7 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
         video_producto = ImageClip("temp_producto_compuesto.jpg").set_duration(duracion_seg2)
         video_producto = video_producto.resize(lambda t: 1 + 0.03 * (t / duracion_seg2))
         clips_video.append(video_producto)
-        print("✅ Escena 2: Producto recortado sobre fondo profesional cargado")
+        print("✅ Escena 2: Producto recortado sobre fondo Flux/Pexels cargado")
     except Exception as e:
         print(f"⚠️ Error componiendo producto: {e}. Usando imagen original.")
         try:
@@ -879,7 +950,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # 🚀 MAIN
 # ================================================================
 def main():
-    print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts (SEO VIRAL + Blindado)")
+    print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts (SEO VIRAL + Flux Cloudflare + Blindado)")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']} ({CONFIG_VOZ_ACTUAL['estilo']})")
     print(f"🔥 Motor de keywords virales ACTIVO")
@@ -902,13 +973,23 @@ def main():
     print(f"🌱 Ingrediente elegido por IA: {ingrediente_elegido}")
     print(f"🔥 Título final: {contenido['titulo']}")
 
-    query_pexels = contenido.get("query_pexels", f"{ingrediente_elegido} natural healthy")
-    url_ingrediente = buscar_imagen_pexels_salud(query_pexels)
-    print(f"🔍 Imagen del ingrediente: {url_ingrediente[:80]}...")
+    # 🎨 ESCENA 1: imagen del ingrediente → Flux (3 intentos) → Pexels
+    print(f"\n🎬 Escena 1: generando imagen del ingrediente...")
+    img_ingrediente = buscar_imagen_segmento_short(
+        contenido.get("query_pexels", f"{ingrediente_elegido} natural healthy"),
+        "img_ingrediente_short.jpg"
+    )
+
+    # 🎨 ESCENA 2: fondo del producto → Flux (3 intentos) → Pexels
+    print(f"\n🎬 Escena 2: generando fondo del producto...")
+    bg_producto = buscar_imagen_segmento_short(
+        f"{ingrediente_elegido} natural healthy background",
+        "bg_producto_short.jpg"
+    )
 
     url_producto = producto["imagen_url"]
 
-    video_path = crear_video_con_dos_imagenes_y_texto(contenido, url_ingrediente, url_producto, ingrediente_elegido)
+    video_path = crear_video_con_dos_imagenes_y_texto(contenido, img_ingrediente, url_producto, ingrediente_elegido, bg_producto)
     if not video_path:
         print("❌ Error creando video")
         sys.exit(1)
@@ -932,8 +1013,10 @@ def main():
         print(f"   🔗 URL: https://youtu.be/{video_id}")
         print(f"   📊 Publicaciones hoy: {estado['publicaciones_hoy']}/{MAX_VIDEOS_DIA}")
 
-    if os.path.exists("short_final.mp4"):
-        os.remove("short_final.mp4")
+    for f in ["short_final.mp4", "img_ingrediente_short.jpg", "bg_producto_short.jpg"]:
+        if os.path.exists(f):
+            try: os.remove(f)
+            except Exception: pass
 
 if __name__ == "__main__":
     try:
