@@ -36,7 +36,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 YOUTUBE_USER_TOKEN = json.loads(os.getenv("YOUTUBE_USER_TOKEN")) if os.getenv("YOUTUBE_USER_TOKEN") else {}
 
-# 🎨 Keys OPCIONALES para Flux (si no están, se usa Pexels directamente)
+# 🎨 Keys para Flux (Cloudflare prioritario; HuggingFace como segundo proveedor)
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
@@ -488,7 +488,7 @@ REGLAS GENERALES:
 - NO digas números de WhatsApp/Telegram en el audio (solo la frase final del cta).
 - Tono educativo, cálido y cercano. Sin emojis en el texto hablado.
 - Incluye SIEMPRE un disclaimer natural: "esto es información educativa basada en la tradición herbolaria, no sustituye la consulta médica".
-- Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, imagen horizontal 16:9 del subtema).
+- Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, descripción visual del subtema para generar o buscar imagen horizontal 16:9).
 
 🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO — ESTO EVITA BANNEO DEL CANAL):
 NUNCA uses en TÍTULO, GUION NI DESCRIPCIÓN:
@@ -613,7 +613,7 @@ def generar_audio(texto, path, voz):
     return None
 
 # ================================================================
-# 🖼️ IMÁGENES
+# 🖼️ IMÁGENES: PEXELS (fallback)
 # ================================================================
 def buscar_imagen_pexels_horizontal(query, intentos=3):
     if not PEXELS_API_KEY: return None
@@ -645,6 +645,60 @@ def descargar_imagen(url, salida):
     img.save(salida, "JPEG", quality=90)
     return salida
 
+# ================================================================
+# 🎨 IMÁGENES DE SEGMENTOS: FLUX CLOUDFLARE (3 intentos) → PEXELS
+# ================================================================
+SEGMENTO_FLUX_SUFFIX = (", photorealistic photography, natural lighting, vivid saturated colors, "
+                        "cinematic composition, botanical and herbal theme, shallow depth of field, "
+                        "no text, no watermark, no people, widescreen 16:9")
+
+def _flux_cloudflare_imagen(query, salida, ancho=1920, alto=1080):
+    """Genera UNA imagen con Flux vía Cloudflare Workers AI. Lanza excepción si falla."""
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+    headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
+    payload = {"prompt": query + SEGMENTO_FLUX_SUFFIX, "width": ancho, "height": alto, "steps": 4}
+    r = requests.post(url, headers=headers, json=payload, timeout=90)
+    r.raise_for_status()
+    data = r.json()
+    b64 = (data.get("result") or {}).get("image")
+    if not b64:
+        raise ValueError(f"Cloudflare no devolvió imagen: {str(data)[:200]}")
+    with open(salida, "wb") as f:
+        f.write(base64.b64decode(b64))
+    # Normalizar a 1920x1080 RGB
+    with Image.open(salida) as im:
+        im = ImageOps.fit(im.convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS)
+        im.save(salida, "JPEG", quality=90)
+    return salida
+
+def buscar_imagen_segmento(query_en, salida):
+    """PRIORIDAD: Flux Cloudflare (hasta 3 intentos). Si falla → Pexels. Nunca deja sin imagen."""
+    if CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID:
+        for intento in range(1, 4):
+            try:
+                print(f"   🎨 Flux segmento intento {intento}/3...")
+                _flux_cloudflare_imagen(query_en, salida)
+                print(f"   ✅ Imagen de segmento generada con Flux (Cloudflare)")
+                return salida
+            except Exception as e:
+                print(f"   ⚠️ Flux segmento intento {intento} falló: {e}")
+                time.sleep(2)
+        print("   ⚠️ Flux falló tras 3 intentos en este segmento. Usando Pexels.")
+    else:
+        print("   ⚠️ Sin keys de Cloudflare configuradas. Usando Pexels para el segmento.")
+
+    # ---- Fallback Pexels ----
+    url_img = buscar_imagen_pexels_horizontal(query_en)
+    if url_img:
+        try:
+            return descargar_imagen(url_img, salida)
+        except Exception as e:
+            print(f"   ⚠️ Pexels falló ({e}). Usando imagen por defecto.")
+    return descargar_imagen("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop", salida)
+
+# ================================================================
+# 🖼️ TEXTO QUEMADO + COMPOSICIÓN DE PRODUCTO
+# ================================================================
 def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
     try:
         with Image.open(img_path) as img:
@@ -670,10 +724,17 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
         print(f"⚠️ Error quemando texto: {e}")
         return img_path
 
-def componer_producto_horizontal(url_producto, url_fondo, salida="img_producto_largo.jpg"):
+def _cargar_fondo(url_o_ruta):
+    """Acepta ruta local (Flux) o URL (Pexels)."""
+    if os.path.exists(url_o_ruta):
+        return Image.open(url_o_ruta).convert("RGB")
+    r = requests.get(url_o_ruta, timeout=20)
+    r.raise_for_status()
+    return Image.open(io.BytesIO(r.content)).convert("RGB")
+
+def componer_producto_horizontal(url_producto, fondo, salida="img_producto_largo.jpg"):
     try:
-        r = requests.get(url_fondo, timeout=20)
-        fondo = ImageOps.fit(Image.open(io.BytesIO(r.content)).convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS)
+        fondo_img = ImageOps.fit(_cargar_fondo(fondo), (ANCHO, ALTO), Image.Resampling.LANCZOS)
         rp = requests.get(url_producto, timeout=20, verify=False)
         prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
         try:
@@ -685,9 +746,9 @@ def componer_producto_horizontal(url_producto, url_fondo, salida="img_producto_l
         prod = prod.resize((int(prod.width * (th / prod.height)), th), Image.Resampling.LANCZOS)
         sombra = prod.copy().filter(ImageFilter.GaussianBlur(radius=25))
         x, y = ANCHO - prod.width - 140, (ALTO - th) // 2
-        fondo.paste(sombra, (x - 12, y - 12), sombra)
-        fondo.paste(prod, (x, y), prod)
-        fondo.save(salida, "JPEG", quality=90)
+        fondo_img.paste(sombra, (x - 12, y - 12), sombra)
+        fondo_img.paste(prod, (x, y), prod)
+        fondo_img.save(salida, "JPEG", quality=90)
         return salida
     except Exception as e:
         print(f"⚠️ Error componiendo producto: {e}")
@@ -797,7 +858,7 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     return salida
 
 # ================================================================
-# 🎨 MOTOR DE FONDOS FLUX (3 intentos) + FALLBACK PEXELS
+# 🎨 MOTOR DE FONDOS FLUX PARA MINIATURA (Cloudflare prioritario)
 # ================================================================
 FLUX_PROMPT_SUFFIX = (", dramatic macro photography, vivid saturated colors, cinematic lighting, "
                       "professional youtube thumbnail background, no text, no watermark, widescreen 16:9")
@@ -806,18 +867,6 @@ def _guardar_fondo(bytes_img, salida):
     with open(salida, "wb") as f:
         f.write(bytes_img)
     return salida
-
-def buscar_fondo_flux_huggingface(query, salida="bg_ia.jpg"):
-    """Flux.1-schnell vía Hugging Face Inference API (tier gratis)."""
-    url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
-    payload = {"inputs": query + FLUX_PROMPT_SUFFIX}
-    r = requests.post(url, headers=headers, json=payload, timeout=120)
-    r.raise_for_status()
-    ctype = r.headers.get("Content-Type", "")
-    if "image" not in ctype or len(r.content) < 20000:
-        raise ValueError(f"HF no devolvió imagen válida (ctype={ctype}, bytes={len(r.content)})")
-    return _guardar_fondo(r.content, salida)
 
 def buscar_fondo_flux_cloudflare(query, salida="bg_ia.jpg"):
     """Flux.1-schnell vía Cloudflare Workers AI (10,000 neuronas/día gratis)."""
@@ -832,20 +881,32 @@ def buscar_fondo_flux_cloudflare(query, salida="bg_ia.jpg"):
         raise ValueError(f"Cloudflare no devolvió imagen: {str(data)[:200]}")
     return _guardar_fondo(base64.b64decode(b64), salida)
 
+def buscar_fondo_flux_huggingface(query, salida="bg_ia.jpg"):
+    """Flux.1-schnell vía Hugging Face Inference API (segundo proveedor)."""
+    url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
+    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
+    payload = {"inputs": query + FLUX_PROMPT_SUFFIX}
+    r = requests.post(url, headers=headers, json=payload, timeout=120)
+    r.raise_for_status()
+    ctype = r.headers.get("Content-Type", "")
+    if "image" not in ctype or len(r.content) < 20000:
+        raise ValueError(f"HF no devolvió imagen válida (ctype={ctype}, bytes={len(r.content)})")
+    return _guardar_fondo(r.content, salida)
+
 def buscar_fondo_ia_flux(query, salida="bg_ia.jpg", intentos=3):
-    """Intenta Flux hasta 3 veces rotando proveedores gratis. Devuelve None si falla."""
+    """Intenta Flux hasta 3 veces (Cloudflare primero, HuggingFace después). Devuelve None si falla."""
     providers = []
-    if HUGGINGFACE_TOKEN:
-        providers.append(("HuggingFace", buscar_fondo_flux_huggingface))
     if CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID:
         providers.append(("Cloudflare", buscar_fondo_flux_cloudflare))
+    if HUGGINGFACE_TOKEN:
+        providers.append(("HuggingFace", buscar_fondo_flux_huggingface))
     if not providers:
-        print("⚠️ Sin keys de Flux configuradas (HUGGINGFACE_TOKEN / CLOUDFLARE_API_TOKEN). Se usará Pexels.")
+        print("⚠️ Sin keys de Flux configuradas. Se usará Pexels para la miniatura.")
         return None
     for intento in range(1, intentos + 1):
         nombre, fn = providers[(intento - 1) % len(providers)]
         try:
-            print(f"🎨 Generando fondo con Flux ({nombre}) - intento {intento}/{intentos}...")
+            print(f"🎨 Generando fondo de miniatura con Flux ({nombre}) - intento {intento}/{intentos}...")
             resultado = fn(query, salida)
             print(f"✅ Fondo Flux generado ({nombre})")
             return resultado
@@ -1031,7 +1092,7 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
         return None
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE (SEO viral + token auto-refresh)
+# 📤 SUBIR A YOUTUBE (SEO viral + token auto-refresh + contactos arriba)
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -1072,7 +1133,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
-    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT (MISMO ESTILO QUE SHORTS)
+    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT
     descripcion = f"""{gancho}
 
 {contexto}
@@ -1134,7 +1195,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 # ================================================================
 def main():
     print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~5 min)")
-    print("🔥 SEO VIRAL ACTIVO + Miniaturas estilo canal grande + Blindaje anti-baneo")
+    print("🔥 SEO VIRAL + Segmentos con Flux (Cloudflare) + Miniaturas estilo canal grande")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     estado = cargar_estado()
@@ -1154,8 +1215,12 @@ def main():
 
     orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
     segmentos_img = []
-    url_fondo_producto = buscar_imagen_pexels_horizontal(guion["segmentos"]["producto"].get("query_pexels", f"{ingrediente_hablado} natural")) or \
-                         "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop"
+
+    # 🎨 Fondo del producto: Flux (3 intentos) → Pexels
+    fondo_producto = buscar_imagen_segmento(
+        guion["segmentos"]["producto"].get("query_pexels", f"{ingrediente_hablado} natural"),
+        "bg_producto.jpg"
+    )
 
     for i, clave in enumerate(orden):
         seg = guion["segmentos"][clave]
@@ -1163,13 +1228,17 @@ def main():
         img_path = f"img_largo_{i}.jpg"
 
         if clave in ("producto", "cta"):
-            if not componer_producto_horizontal(producto["imagen_url"], url_fondo_producto, img_path):
-                descargar_imagen(url_fondo_producto, img_path)
+            # Producto recortado sobre fondo Flux/Pexels
+            if not componer_producto_horizontal(producto["imagen_url"], fondo_producto, img_path):
+                # Si falla la composición, usa el fondo tal cual
+                if os.path.exists(fondo_producto):
+                    with Image.open(fondo_producto) as im:
+                        ImageOps.fit(im.convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS).save(img_path, "JPEG", quality=90)
+                else:
+                    buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
         else:
-            url_img = buscar_imagen_pexels_horizontal(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"))
-            if not url_img:
-                url_img = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop"
-            descargar_imagen(url_img, img_path)
+            # 🎨 IMAGEN DEL SEGMENTO: Flux Cloudflare (3 intentos) → Pexels
+            buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
 
         tp = seg.get("texto_pantalla", "")
         if tp:
@@ -1210,7 +1279,7 @@ def main():
     print(f"   🔑 Contraseña del bot: {TELEGRAM_PASSWORD}")
 
     for f in os.listdir("."):
-        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg", "bg_pexels.jpg"):
+        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg", "bg_pexels.jpg", "bg_producto.jpg"):
             try: os.remove(f)
             except Exception: pass
 
