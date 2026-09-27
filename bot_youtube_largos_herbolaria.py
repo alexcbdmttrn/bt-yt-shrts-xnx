@@ -43,6 +43,7 @@ CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 
 WHATSAPP_NUMBER = "+52 3123395334"
 TELEGRAM_BOT = "@alex_xanax_bot"
+TELEGRAM_PASSWORD = "Prueba20Dias"  # Contraseña temporal del bot
 CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
 FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
@@ -1049,6 +1050,7 @@ def fijar_comentario_contacto(youtube, video_id):
             "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n"
             f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
             f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
+            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}\n"
             "👇 Coméntame qué remedio natural quieres que investiguemos en el próximo video."
         )
         youtube.commentThreads().insert(
@@ -1067,9 +1069,16 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
+    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT
     descripcion = f"""{gancho}
 
 {contexto}
+
+📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
+💬 WhatsApp: {WHATSAPP_NUMBER}
+📞 Teléfono: 3123395334
+🤖 Asistente Inteligente: {TELEGRAM_BOT}
+🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}
 {problema_str}
 
 🌿 INGREDIENTE ESTRELLA: {ingrediente}
@@ -1085,10 +1094,6 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 04:00 Cómo conseguirlo
 
 ⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
-
-📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
-💬 WhatsApp: {WHATSAPP_NUMBER}
-🤖 Asistente Inteligente: {TELEGRAM_BOT}
 
 🔗 Canal: {CANAL_LINK}
 📘 Facebook: {FACEBOOK_LINK}
