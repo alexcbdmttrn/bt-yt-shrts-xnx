@@ -37,7 +37,9 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 YOUTUBE_USER_TOKEN = json.loads(os.getenv("YOUTUBE_USER_TOKEN")) if os.getenv("YOUTUBE_USER_TOKEN") else {}
 
 WHATSAPP_NUMBER = "+52 3123395334"
+TELEFONO_NUMBER = "3123395334"
 TELEGRAM_BOT = "@alex_xanax_bot"
+TELEGRAM_PASSWORD = "A"  # Contraseña del bot de Telegram
 CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
 FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
@@ -785,7 +787,7 @@ def crear_video_con_dos_imagenes_y_texto(guion, url_ingrediente, url_producto, i
     return "short_final.mp4"
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE CON SEO VIRAL
+# 📤 SUBIR A YOUTUBE CON SEO VIRAL + CONTACTOS ARRIBA
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -800,11 +802,14 @@ def obtener_credenciales_youtube():
     return creds
 
 def fijar_comentario_contacto(youtube, video_id):
+    """Fija un comentario con los contactos + contraseña del bot."""
     try:
         texto = (
-            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n"
+            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n\n"
             f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
+            f"📞 Teléfono: {TELEFONO_NUMBER}\n"
             f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
+            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}\n\n"
             "👇 Coméntame qué remedio natural quieres que investiguemos en el próximo video."
         )
         youtube.commentThreads().insert(
@@ -812,7 +817,7 @@ def fijar_comentario_contacto(youtube, video_id):
             body={"snippet": {"videoId": video_id,
                               "topLevelComment": {"snippet": {"textOriginal": texto}}}}
         ).execute()
-        print("✅ Comentario de contacto publicado")
+        print("✅ Comentario de contacto publicado (con contraseña)")
     except Exception as e:
         print(f"⚠️ Error comentario: {e}")
 
@@ -827,18 +832,21 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
     hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
+    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT
     descripcion = f"""{gancho}
 
 {contexto}
+
+📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
+💬 WhatsApp: {WHATSAPP_NUMBER}
+📞 Teléfono: {TELEFONO_NUMBER}
+🤖 Asistente Inteligente: {TELEGRAM_BOT}
+🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}
 {problema_str}
 
 🌿 INGREDIENTE ESTRELLA: {ingrediente}
 
 ⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
-
-📲 ¿QUIERES SABER MÁS O ADQUIRIR ESTE PRODUCTO?
-💬 Contáctanos directamente por WhatsApp: {WHATSAPP_NUMBER}
-🤖 O contacta a nuestro Asesor Inteligente en Telegram: {TELEGRAM_BOT}
 
 🔗 Más contenido en nuestro canal: {CANAL_LINK}
 📘 Síguenos en Facebook: {FACEBOOK_LINK}
@@ -918,7 +926,9 @@ def main():
         guardar_estado(estado)
         print(f"\n🎉 ¡Publicado exitosamente con SEO viral!")
         print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
+        print(f"   📞 Teléfono: {TELEFONO_NUMBER}")
         print(f"   🤖 Telegram: {TELEGRAM_BOT}")
+        print(f"   🔑 Contraseña del bot: {TELEGRAM_PASSWORD}")
         print(f"   🔗 URL: https://youtu.be/{video_id}")
         print(f"   📊 Publicaciones hoy: {estado['publicaciones_hoy']}/{MAX_VIDEOS_DIA}")
 
