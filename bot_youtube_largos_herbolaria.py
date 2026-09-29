@@ -445,7 +445,7 @@ def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
     return ", ".join(tags_unicos[:20])
 
 # ================================================================
-# 🤖 IA GENERA GUION (SEO viral + políticas seguras)
+# 🤖 IA GENERA GUION (SEO viral + políticas seguras + DURACIÓN REDUCIDA 3-4 min)
 # ================================================================
 def ia_genera_guion_largo(producto, ingrediente, tema_viral):
     info_catalogo = obtener_info_ingrediente_catalogo(ingrediente) or "Sin ficha en catálogo; usa conocimiento general verificado."
@@ -454,7 +454,7 @@ def ia_genera_guion_largo(producto, ingrediente, tema_viral):
     keywords_virales_prompt = obtener_keywords_aleatorias_virales(8)
     prohibidas_str = ", ".join(f'"{p}"' for p in PALABRAS_PROHIBIDAS_TITULO[:40]) + "..."
 
-    prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (5 minutos, horizontal) OPTIMIZADOS para búsquedas virales y 100% SEGUROS ante las políticas de YouTube.
+    prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (3 a 4 minutos máximo, horizontal) OPTIMIZADOS para búsquedas virales y 100% SEGUROS ante las políticas de YouTube.
 
 📦 PRODUCTO COMPLETO:
 NOMBRE: {producto.get('nombre')}
@@ -473,15 +473,18 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
 🔑 KEYWORDS VIRALES DE ALTO VOLUMEN QUE DEBES USAR:
 {', '.join(keywords_virales_prompt)}
 
-🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~5 minutos reales):
-1. "hook" (45-55 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso). INCLUYE una keyword viral ("remedios naturales", "hierbas medicinales" o "salud natural").
-2. "problema" (85-100 palabras): El problema/síntoma que sufre la audiencia ({problema}).
-3. "ingrediente" (130-150 palabras): Presenta el ingrediente estrella, origen e historia. Menciona "herbolaria mexicana" o "medicina natural".
-4. "beneficio_1" (90-105 palabras): Primer beneficio según la tradición herbal.
-5. "beneficio_2" (90-105 palabras): Segundo beneficio según la tradición herbal.
-6. "beneficio_3" (90-105 palabras): Tercer beneficio según la tradición herbal.
-7. "producto" (170-195 palabras): Presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
-8. "cta" (165-190 palabras): Resumen + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+⚠️ IMPORTANTE: DURACIÓN OBJETIVO 3 A 4 MINUTOS.
+Sé directo, conciso y evita relleno. Cada palabra cuenta. Respeta estrictamente los conteos de palabras.
+
+🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~3:30 minutos reales):
+1. "hook" (35-45 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso). INCLUYE una keyword viral ("remedios naturales", "hierbas medicinales" o "salud natural").
+2. "problema" (65-80 palabras): El problema/síntoma que sufre la audiencia ({problema}). Sé empático pero breve.
+3. "ingrediente" (95-110 palabras): Presenta el ingrediente estrella, origen breve. Menciona "herbolaria mexicana" o "medicina natural".
+4. "beneficio_1" (65-80 palabras): Primer beneficio según la tradición herbal.
+5. "beneficio_2" (65-80 palabras): Segundo beneficio según la tradición herbal.
+6. "beneficio_3" (65-80 palabras): Tercer beneficio según la tradición herbal.
+7. "producto" (120-140 palabras): Presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
+8. "cta" (100-120 palabras): Resumen breve + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
 
 REGLAS GENERALES:
 - Si el ingrediente suena a saborizante (ej: "Sabor Piña Natural"), habla del ingrediente REAL ("Piña") manteniendo coherencia con el producto.
@@ -544,11 +547,11 @@ Devuelve ESTRICTAMENTE este JSON:
 
     for intento in range(5):
         try:
-            print(f"🤖 IA escribiendo guion de 5 min con SEO viral... (intento {intento+1}/5)")
+            print(f"🤖 IA escribiendo guion de 3-4 min con SEO viral... (intento {intento+1}/5)")
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.8, "max_tokens": 3500, "response_format": {"type": "json_object"}}, timeout=120)
+                      "temperature": 0.8, "max_tokens": 3000, "response_format": {"type": "json_object"}}, timeout=120)
             r.raise_for_status()
             resp = r.json()["choices"][0]["message"]["content"].strip()
             resp = re.sub(r'`json\s*', '', resp).replace('`', '')
@@ -557,7 +560,7 @@ Devuelve ESTRICTAMENTE este JSON:
 
             orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
             for k in orden:
-                if k not in data.get("segmentos", {}) or len(data["segmentos"][k].get("texto", "")) < 40:
+                if k not in data.get("segmentos", {}) or len(data["segmentos"][k].get("texto", "")) < 30:
                     raise ValueError(f"Segmento {k} faltante o corto")
 
             cta_txt = data["segmentos"]["cta"]["texto"]
@@ -1133,7 +1136,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
-    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT
+    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT + CAPÍTULOS AJUSTADOS A 3:30
     descripcion = f"""{gancho}
 
 {contexto}
@@ -1149,13 +1152,13 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 
 ⏱️ CAPÍTULOS:
 00:00 Introducción
-00:15 El problema
-00:45 El ingrediente estrella
-01:30 Beneficio 1
-02:00 Beneficio 2
-02:30 Beneficio 3
-03:00 El producto recomendado
-04:00 Cómo conseguirlo
+00:10 El problema
+00:30 El ingrediente estrella
+01:00 Beneficio 1
+01:30 Beneficio 2
+02:00 Beneficio 3
+02:30 El producto recomendado
+03:15 Cómo conseguirlo
 
 ⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
 
@@ -1194,7 +1197,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 # 🚀 MAIN
 # ================================================================
 def main():
-    print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~5 min)")
+    print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~3-4 min)")
     print("🔥 SEO VIRAL + Segmentos con Flux (Cloudflare) + Miniaturas estilo canal grande")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
