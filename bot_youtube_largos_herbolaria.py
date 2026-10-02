@@ -491,7 +491,7 @@ REGLAS GENERALES:
 - NO digas números de WhatsApp/Telegram en el audio (solo la frase final del cta).
 - Tono educativo, cálido y cercano. Sin emojis en el texto hablado.
 - Incluye SIEMPRE un disclaimer natural: "esto es información educativa basada en la tradición herbolaria, no sustituye la consulta médica".
-- Cada segmento incluye "texto_pantalla" (máx 5 palabras) y "query_pexels" (en inglés, descripción visual del subtema para generar o buscar imagen horizontal 16:9).
+- Cada segmento incluye "texto_pantalla" (MÁX 3-4 palabras, estilo titular impactante: ej. "ALIVIA EL DOLOR", "PLANTA SAGRADA", "DESDE LA ABUELA") y "query_pexels" (en inglés, descripción visual del subtema para generar o buscar imagen horizontal 16:9).
 
 🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO — ESTO EVITA BANNEO DEL CANAL):
 NUNCA uses en TÍTULO, GUION NI DESCRIPCIÓN:
@@ -651,8 +651,10 @@ def descargar_imagen(url, salida):
 # ================================================================
 # 🎨 IMÁGENES DE SEGMENTOS: FLUX CLOUDFLARE (3 intentos) → PEXELS
 # ================================================================
-SEGMENTO_FLUX_SUFFIX = (", photorealistic photography, natural lighting, vivid saturated colors, "
-                        "cinematic composition, botanical and herbal theme, shallow depth of field, "
+# 🔥 PROMPT VIRAL: colores saturados, luz dramática y espacio limpio para texto
+SEGMENTO_FLUX_SUFFIX = (", ultra vivid saturated colors, dramatic cinematic lighting, high-contrast macro photography, "
+                        "lush botanical herbal theme, glossy dew textures, dark vignette edges with bright glowing subject, "
+                        "clean negative space in the lower third for text overlay, "
                         "no text, no watermark, no people, widescreen 16:9")
 
 def _flux_cloudflare_imagen(query, salida, ancho=1920, alto=1080):
@@ -700,29 +702,67 @@ def buscar_imagen_segmento(query_en, salida):
     return descargar_imagen("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop", salida)
 
 # ================================================================
-# 🖼️ TEXTO QUEMADO + COMPOSICIÓN DE PRODUCTO
+# 💥 BOOST DE COLOR ESTILO VIRAL (aplica a TODA imagen de segmento)
+# ================================================================
+def potenciar_imagen_segmento(img_path):
+    """Sube saturación, contraste, brillo y nitidez para que el fondo impacte como miniatura viral."""
+    try:
+        with Image.open(img_path) as im:
+            im = im.convert("RGB")
+            im = ImageEnhance.Color(im).enhance(1.35)
+            im = ImageEnhance.Contrast(im).enhance(1.18)
+            im = ImageEnhance.Brightness(im).enhance(1.05)
+            im = ImageEnhance.Sharpness(im).enhance(1.3)
+            im.save(img_path, "JPEG", quality=90)
+        return img_path
+    except Exception as e:
+        print(f"⚠️ Error potenciando imagen: {e}")
+        return img_path
+
+# ================================================================
+# 🖼️ TEXTO QUEMADO ESTILO VIRAL + COMPOSICIÓN DE PRODUCTO
 # ================================================================
 def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
+    """Quema texto estilo VIRAL sobre la imagen del segmento:
+    - hook (center): letras GIGANTES amarillas con degradado + contorno negro + badge rojo
+    - resto (lower): banner ROJO con texto blanco inclinado, sobre viñeta inferior
+    """
     try:
+        fuente = asegurar_fuente_thumbnail()
         with Image.open(img_path) as img:
             img = img.convert("RGBA")
-            capa = Image.new("RGBA", img.size, (0, 0, 0, 0))
-            draw = ImageDraw.Draw(capa)
-            font = None
-            for size in range(72, 36, -4):
-                font = ImageFont.truetype(FUENTE, size)
-                if draw.textbbox((0, 0), texto.upper(), font=font)[2] < ANCHO * 0.85: break
-            tw = draw.textbbox((0, 0), texto.upper(), font=font)[2]
-            th = draw.textbbox((0, 0), texto.upper(), font=font)[3]
-            if estilo == "lower":
-                y = ALTO - 190
-            else:
-                y = (ALTO - th) // 2
-            draw.rectangle([(ANCHO - tw) // 2 - 30, y - 20, (ANCHO + tw) // 2 + 30, y + th + 25], fill=(0, 0, 0, 170))
-            draw.text(((ANCHO - tw) // 2, y), texto.upper(), font=font, fill=(255, 214, 102, 255))
-            img = Image.alpha_composite(img, capa).convert("RGB")
-            img.save(salida, "JPEG", quality=90)
+        capa = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        d = ImageDraw.Draw(capa)
+        texto_up = re.sub(r'[^\w\sáéíóúñÁÉÍÓÚÑ¡!¿?]', '', texto or "").upper().strip()
+        if not texto_up:
+            img.convert("RGB").save(salida, "JPEG", quality=90)
             return salida
+
+        if estilo == "center":
+            # Letras gigantes con degradado amarillo centradas + placa oscura + badge rojo
+            bloque = _fit(texto_up, fuente, 170, 70, int(ANCHO * 0.92), render_texto_gradiente)
+            bloque = bloque.rotate(2, expand=True, resample=Image.BICUBIC)
+            x = (ANCHO - bloque.width) // 2
+            y = (ALTO - bloque.height) // 2 - 60
+            d.rounded_rectangle([x - 50, y - 40, x + bloque.width + 50, y + bloque.height + 40],
+                                radius=36, fill=(0, 0, 0, 150))
+            capa.paste(bloque, (x, y), bloque)
+            badge = render_banner("HERBOLARIA TRADICIONAL", fuente, 46, bg=(198, 30, 30))
+            capa.paste(badge, ((ANCHO - badge.width) // 2, y + bloque.height + 60), badge)
+        else:
+            # Viñeta inferior + banner rojo inclinado con texto blanco
+            for yy in range(ALTO - 380, ALTO):
+                a = int(150 * ((yy - (ALTO - 380)) / 380))
+                d.line([(0, yy), (ANCHO, yy)], fill=(0, 0, 0, a))
+            banner = _fit(texto_up, fuente, 110, 48, int(ANCHO * 0.86), render_banner, bg=(198, 30, 30))
+            banner = banner.rotate(-2, expand=True, resample=Image.BICUBIC)
+            x = (ANCHO - banner.width) // 2
+            y = ALTO - banner.height - 150
+            capa.paste(banner, (x, y), banner)
+
+        img = Image.alpha_composite(img, capa)
+        img.convert("RGB").save(salida, "JPEG", quality=90)
+        return salida
     except Exception as e:
         print(f"⚠️ Error quemando texto: {e}")
         return img_path
@@ -1242,6 +1282,9 @@ def main():
         else:
             # 🎨 IMAGEN DEL SEGMENTO: Flux Cloudflare (3 intentos) → Pexels
             buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
+
+        # 💥 Boost de color estilo viral ANTES de quemar el texto
+        img_path = potenciar_imagen_segmento(img_path)
 
         tp = seg.get("texto_pantalla", "")
         if tp:
