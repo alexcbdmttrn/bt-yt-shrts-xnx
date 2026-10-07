@@ -45,8 +45,6 @@ WHATSAPP_NUMBER = "+52 3123395334"
 TELEFONO_NUMBER = "3123395334"
 TELEGRAM_BOT = "@alex_xanax_bot"
 TELEGRAM_PASSWORD = "A"  # Contraseña del bot de Telegram
-CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
-FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
 ESTADO_FILE = "estado_largos_herbolaria.json"
 INGREDIENTES_LARGOS_FILE = "ingredientes_largos_usados.json"
@@ -217,13 +215,6 @@ KEYWORDS_VIRALES = {
         {"kw": "estilo de vida", "peso": 6},
     ],
 }
-
-HASHTAGS_VIRALES = [
-    "#remediosnaturales", "#remedioscaseros", "#saludnatural",
-    "#medicinanatural", "#herbolaria", "#hierbasmedicinales",
-    "#plantasmedicinales", "#bienestar", "#tipsdesalud",
-    "#salud", "#natural", "#tradicionmexicana",
-]
 
 # ================================================================
 # 🌿 TEMAS VIRALES (seguros + keywords de alto volumen)
@@ -425,24 +416,131 @@ def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
         print(f"🔥 Keyword viral inyectada en título: {t}")
     return t[:70]
 
-def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
-    """Genera 20 tags optimizados con keywords de alto volumen."""
-    tags = [ingrediente.lower(), f"{ingrediente} beneficios", f"{ingrediente} propiedades"]
-    tags.extend(obtener_keywords_aleatorias_virales(6))
-    if tema_viral:
-        tags.extend(tema_viral.get("keywords_cortas", [])[:3])
-        tags.extend(tema_viral.get("keywords_largas", [])[:2])
+# ================================================================
+# 🎯 GENERADOR DE TAGS SEO ELITE (ESTILO VidIQ Premium)
+# ================================================================
+def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
+    """
+    Genera 20-25 tags optimizados estilo VidIQ Premium:
+    - Tags CORTOS (1-2 palabras): específicos del ingrediente
+    - Tags MEDIOS (3-4 palabras): problema + ingrediente
+    - Tags LARGOS (5+ palabras): long-tail keywords de búsqueda
+    - Tags GENERALES del nicho (canal/herbolaria)
+    - Tags del TÍTULO (extraídos automáticamente)
+    - Tags de SÍNTOMAS individuales
+    
+    Respeta el límite de 500 caracteres totales de YouTube.
+    """
+    tags = []
+    ing_lower = ingrediente.lower().strip()
+    ing_words = ing_lower.split()
+    
+    # ============================================================
+    # 1) TAGS CORTOS ESPECÍFICOS (ingrediente y variaciones)
+    # ============================================================
+    tags.append(ing_lower)  # "romero"
+    if len(ing_words) > 1:
+        tags.append(" ".join(ing_words[:2]))
+    tags.append(f"planta {ing_lower}")
+    tags.append(f"hierba {ing_lower}")
+    
+    # ============================================================
+    # 2) TAGS MEDIOS ESPECÍFICOS (ingrediente + uso)
+    # ============================================================
+    tags.append(f"remedio de {ing_lower}")
+    tags.append(f"té de {ing_lower}")
+    tags.append(f"propiedades del {ing_lower}")
+    tags.append(f"beneficios del {ing_lower}")
+    tags.append(f"para qué sirve el {ing_lower}")
+    
+    # ============================================================
+    # 3) TAGS LARGOS LONG-TAIL (búsquedas reales tipo VidIQ)
+    # ============================================================
+    tags.append(f"cómo preparar {ing_lower} remedio casero")
+    tags.append(f"beneficios del {ing_lower} para la salud")
+    tags.append(f"{ing_lower} usos en la herbolaria mexicana")
+    tags.append(f"remedios naturales con {ing_lower}")
+    
+    # ============================================================
+    # 4) TAGS DE SÍNTOMAS/PROBLEMAS (cada uno individual)
+    # ============================================================
     if problema:
-        tags.append(problema.lower())
-        tags.append(f"remedios naturales para {problema.lower()}")
-    for ht in HASHTAGS_VIRALES[:6]:
-        tags.append(ht.replace("#", ""))
+        problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
+        for prob in problemas_individuales[:5]:  # máx 5 síntomas
+            prob_limpio = prob.lower().strip()
+            if len(prob_limpio) > 3:
+                tags.append(prob_limpio)
+                tags.append(f"remedio natural para {prob_limpio}")
+                tags.append(f"{ing_lower} para {prob_limpio}")
+    
+    # ============================================================
+    # 5) TAGS GENERALES DEL NICHO (canal/herbolaria/salud natural)
+    # ============================================================
+    tags_generales = [
+        "remedios naturales",
+        "remedios caseros",
+        "herbolaria mexicana",
+        "medicina natural",
+        "plantas medicinales",
+        "hierbas medicinales",
+        "salud natural",
+        "bienestar natural",
+        "tradición mexicana",
+        "medicina alternativa",
+    ]
+    tags.extend(tags_generales)
+    
+    # ============================================================
+    # 6) TAGS DEL TÍTULO (extraídos automáticamente)
+    # ============================================================
+    if titulo:
+        palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if len(p) > 4]
+        # Tomar las 4 más relevantes que no estén ya
+        for p in palabras_titulo[:6]:
+            if p not in [t.lower() for t in tags]:
+                tags.append(p)
+    
+    # ============================================================
+    # 7) TAGS DEL TEMA VIRAL
+    # ============================================================
+    if tema_viral:
+        for kw in tema_viral.get("keywords_cortas", [])[:2]:
+            if kw.lower() not in [t.lower() for t in tags]:
+                tags.append(kw.lower())
+        for kw in tema_viral.get("keywords_largas", [])[:1]:
+            if kw.lower() not in [t.lower() for t in tags]:
+                tags.append(kw.lower())
+    
+    # ============================================================
+    # 8) LIMPIEZA + DEDUPLICACIÓN + LÍMITE DE 500 CARACTERES
+    # ============================================================
+    # Normalizar y deduplicar preservando orden
     tags_unicos = []
+    vistos = set()
     for tag in tags:
-        tag_limpio = tag.strip().lower()
-        if tag_limpio and tag_limpio not in tags_unicos:
+        tag_limpio = re.sub(r'\s+', ' ', tag.strip().lower())
+        # Quitar palabras prohibidas
+        if any(p in tag_limpio for p in PALABRAS_PROHIBIDAS_TITULO[:50]):
+            continue
+        if tag_limpio and tag_limpio not in vistos and len(tag_limpio) > 2:
             tags_unicos.append(tag_limpio)
-    return ", ".join(tags_unicos[:20])
+            vistos.add(tag_limpio)
+    
+    # Respetar límite de 500 caracteres de YouTube
+    resultado = []
+    total_chars = 0
+    for tag in tags_unicos:
+        # +1 por la coma separadora
+        if total_chars + len(tag) + 1 > 495:
+            break
+        resultado.append(tag)
+        total_chars += len(tag) + 1
+    
+    return ", ".join(resultado)
+
+def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
+    """Wrapper de compatibilidad (ya no se usa, pero se mantiene)."""
+    return generar_tags_seo_elite(ingrediente, problema, "", tema_viral)
 
 # ================================================================
 # 🤖 IA GENERA GUION (SEO viral + políticas seguras + DURACIÓN REDUCIDA 3-4 min)
@@ -572,12 +670,17 @@ Devuelve ESTRICTAMENTE este JSON:
             # 🔥 SANITIZAR + INYECTAR KEYWORDS VIRALES AL TÍTULO
             data["titulo"] = optimizar_titulo_largo(data.get("titulo"), data["ingrediente_real"], problema)
 
-            # 🔥 GENERAR TAGS VIRALES AUTOMÁTICAMENTE
-            data["tags"] = generar_tags_virales(data["ingrediente_real"], problema, tema_viral)
+            # 🔥 GENERAR TAGS SEO ELITE AUTOMÁTICAMENTE (estilo VidIQ)
+            data["tags"] = generar_tags_seo_elite(
+                data["ingrediente_real"], 
+                problema, 
+                data.get("titulo", ""), 
+                tema_viral
+            )
 
             print(f"✅ Guion listo. Ingrediente real: {data['ingrediente_real']}")
             print(f"🔥 Título SEO: {data.get('titulo')}")
-            print(f"🏷️ Tags virales: {data.get('tags')[:90]}...")
+            print(f"🏷️ Tags SEO Elite ({len(data['tags'].split(','))} tags): {data.get('tags')[:120]}...")
             return data
         except Exception as e:
             print(f"⚠️ Intento {intento+1} falló: {e}")
@@ -848,13 +951,16 @@ def efecto_ken_burns(img_path, duracion, direccion="in"):
     return clip
 
 # ================================================================
-# 🎥 MONTAR VIDEO
+# 🎥 MONTAR VIDEO (ahora devuelve también duraciones por segmento)
 # ================================================================
 def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     clips_video, clips_audio = [], []
+    duraciones_segmentos = []  # 🔥 NUEVO: duraciones reales de cada segmento
+    
     for i, seg in enumerate(segmentos_img):
         audio = AudioFileClip(seg["audio_path"])
         dur = audio.duration + (PAUSA_ENTRE_SEGMENTOS if i < len(segmentos_img) - 1 else 0)
+        duraciones_segmentos.append(dur)  # guardar duración real
         vc = efecto_ken_burns(seg["img_path"], dur, "in" if i % 2 == 0 else "out")
         clips_video.append(vc)
         clips_audio.append(audio)
@@ -898,7 +1004,43 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     print("🎬 Renderizando video largo (puede tardar varios minutos)...")
     video.write_videofile(salida, fps=24, codec="libx264", audio_codec="aac",
                           threads=4, preset="ultrafast", verbose=False, logger=None)
-    return salida
+    return salida, duraciones_segmentos, duracion_total
+
+# ================================================================
+# 🕐 GENERADOR DE CAPÍTULOS DINÁMICOS (basado en duraciones reales)
+# ================================================================
+def formatear_timestamp(segundos):
+    """Convierte segundos a formato MM:SS para capítulos de YouTube."""
+    minutos = int(segundos) // 60
+    segs = int(segundos) % 60
+    return f"{minutos:02d}:{segs:02d}"
+
+def generar_capitulos_dinamicos(duraciones_segmentos):
+    """
+    Genera timestamps de capítulos basados en las duraciones REALES de cada audio.
+    Etiquetas de capítulo optimizadas para SEO (con keyword del segmento).
+    """
+    nombres_segmentos = [
+        "Introducción",
+        "El problema",
+        "El ingrediente estrella",
+        "Beneficio 1",
+        "Beneficio 2",
+        "Beneficio 3",
+        "El producto recomendado",
+        "Cómo conseguirlo",
+    ]
+    
+    capitulos = []
+    tiempo_acumulado = 0.0
+    
+    for i, dur in enumerate(duraciones_segmentos):
+        timestamp = formatear_timestamp(tiempo_acumulado)
+        nombre = nombres_segmentos[i] if i < len(nombres_segmentos) else f"Capítulo {i+1}"
+        capitulos.append(f"{timestamp} {nombre}")
+        tiempo_acumulado += dur
+    
+    return "\n".join(capitulos)
 
 # ================================================================
 # 🎨 MOTOR DE FONDOS FLUX PARA MINIATURA (Cloudflare prioritario)
@@ -1169,14 +1311,13 @@ def fijar_comentario_contacto(youtube, video_id):
     except Exception as e:
         print(f"⚠️ Error comentario: {e}")
 
-def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto, ingrediente, problema=None):
+def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto, ingrediente, problema=None, capitulos_dinamicos=""):
     creds = obtener_credenciales_youtube()
     youtube = build("youtube", "v3", credentials=creds)
 
-    hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
-    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT + CAPÍTULOS AJUSTADOS A 3:30
+    # 🔥 DESCRIPCIÓN SIN ENLACES EXTERNOS + CAPÍTULOS DINÁMICOS + TAGS SEO
     descripcion = f"""{gancho}
 
 {contexto}
@@ -1190,30 +1331,24 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 
 🌿 INGREDIENTE ESTRELLA: {ingrediente}
 
-⏱️ CAPÍTULOS:
-00:00 Introducción
-00:10 El problema
-00:30 El ingrediente estrella
-01:00 Beneficio 1
-01:30 Beneficio 2
-02:00 Beneficio 3
-02:30 El producto recomendado
-03:15 Cómo conseguirlo
+⏱️ CAPÍTULOS (basados en el audio real del video):
+{capitulos_dinamicos}
 
 ⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
 
-🔗 Canal: {CANAL_LINK}
-📘 Facebook: {FACEBOOK_LINK}
+🔍 En este video aprenderás:
+• Para qué sirve el {ingrediente} en la herbolaria mexicana
+• Beneficios y propiedades tradicionales del {ingrediente}
+• Cómo usar el {ingrediente} como remedio natural
+• El producto recomendado con {ingrediente} y dónde conseguirlo
 
-🔍 Búsquedas relacionadas: remedios naturales, remedios caseros, salud natural, medicina natural, herbolaria mexicana, hierbas medicinales, plantas medicinales, tips de salud, bienestar natural, tradición mexicana, para qué sirve, beneficios de, propiedades de, cómo usar
-
-{hashtags_str} #{ingrediente.replace(' ', '')}"""
+#remediosnaturales #remedioscaseros #saludnatural #medicinanatural #herbolaria #hierbasmedicinales #{ingrediente.replace(' ', '')}"""
 
     if ACTIVAR_DISCLOSURE_IA: descripcion += DISCLOSURE_TEXT
 
     body = {
         "snippet": {"title": titulo[:100], "description": descripcion[:5000],
-                    "tags": [t.strip() for t in tags_str.split(",") if t.strip()][:20],
+                    "tags": [t.strip() for t in tags_str.split(",") if t.strip()][:30],
                     "categoryId": "26", "defaultLanguage": "es", "defaultAudioLanguage": "es"},
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True},
     }
@@ -1238,7 +1373,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 # ================================================================
 def main():
     print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~3-4 min)")
-    print("🔥 SEO VIRAL + Segmentos con Flux (Cloudflare) + Miniaturas estilo canal grande")
+    print("🔥 SEO ELITE + Capítulos dinámicos + Tags VidIQ + Segmentos con Flux")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     estado = cargar_estado()
@@ -1296,7 +1431,14 @@ def main():
             sys.exit(1)
         segmentos_img.append({"img_path": img_path, "audio_path": audio_path})
 
-    video_path = montar_video_largo(segmentos_img)
+    # 🎥 MONTAR VIDEO (ahora devuelve duraciones reales por segmento)
+    video_path, duraciones_segmentos, duracion_total = montar_video_largo(segmentos_img)
+    
+    # 🕐 GENERAR CAPÍTULOS DINÁMICOS basados en duraciones reales
+    capitulos_dinamicos = generar_capitulos_dinamicos(duraciones_segmentos)
+    print(f"\n⏱️ Capítulos generados dinámicamente:")
+    print(capitulos_dinamicos)
+    print(f"⏱️ Duración total del video: {formatear_timestamp(duracion_total)}")
 
     # 🖼️ Miniatura V3: fondo Flux (3 intentos) → Pexels como siempre si Flux falla
     base_thumb = buscar_fondo_ia_flux(f"{ingrediente_hablado} plant natural vivid macro")
@@ -1308,9 +1450,13 @@ def main():
             base_thumb = "img_largo_2.jpg"
     thumb = crear_miniatura_larga(base_thumb, producto["imagen_url"], ingrediente_hablado, problema, guion["titulo"])
 
-    video_id = subir_video_largo(video_path, thumb, guion["titulo"], guion["tags"],
-                                 guion["gancho_descripcion"], guion["contexto_descripcion"],
-                                 ingrediente_hablado, problema)
+    # 📤 SUBIR A YOUTUBE CON CAPÍTULOS DINÁMICOS
+    video_id = subir_video_largo(
+        video_path, thumb, guion["titulo"], guion["tags"],
+        guion["gancho_descripcion"], guion["contexto_descripcion"],
+        ingrediente_hablado, problema,
+        capitulos_dinamicos=capitulos_dinamicos
+    )
 
     guardar_ingrediente_largo_usado(ingrediente, producto["nombre"])
     guardar_titulo(guion["titulo"])
@@ -1318,7 +1464,7 @@ def main():
     estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
     guardar_estado(estado)
 
-    print(f"\n🎉 VIDEO LARGO PUBLICADO CON SEO VIRAL: https://youtu.be/{video_id}")
+    print(f"\n🎉 VIDEO LARGO PUBLICADO CON SEO ELITE: https://youtu.be/{video_id}")
     print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
     print(f"   📞 Teléfono: {TELEFONO_NUMBER}")
     print(f"   🤖 Telegram: {TELEGRAM_BOT}")
