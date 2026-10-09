@@ -75,7 +75,6 @@ FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 # 🛡️ PALABRAS PROHIBIDAS (Política de salud de YouTube - 9 categorías)
 # ================================================================
 PALABRAS_PROHIBIDAS_TITULO = [
-    # 1. Claims de curación
     "cura", "curar", "cura milagrosa", "curación",
     "milagrosa", "milagroso", "milagro", "milagros",
     "sana", "sanar", "sanación", "sanarlo", "sanarte",
@@ -86,7 +85,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "adiós al", "adiós definitivo", "adiós para siempre",
     "nunca más", "para siempre",
     "de raíz", "desde la raíz", "elimina de raíz",
-    # 2. Claims médicos no verificados
     "científicamente comprobado", "cientificamente comprobado",
     "comprobado científicamente", "comprobado cientificamente",
     "clínicamente probado", "clinicamente probado",
@@ -100,7 +98,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "garantizado", "garantía de resultados",
     "revolucionario", "breakthrough", "descubrimiento médico",
     "innovación médica", "patentado médicamente",
-    # 3. Reemplazo de tratamiento médico
     "reemplaza", "reemplaza medicamentos", "reemplaza tu tratamiento",
     "sustituye", "sustituye medicamentos", "sustituye tu tratamiento",
     "no necesitas médico", "sin ir al médico", "olvida al doctor",
@@ -108,7 +105,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "olvida la medicina", "tira tus pastillas", "deja tu tratamiento",
     "sin fármacos", "sin medicamentos", "sin receta médica",
     "alternativa a medicamentos", "en vez de medicamentos",
-    # 4. Promesas de tiempo específico
     "en 24 horas", "en un día", "hoy mismo",
     "en 3 días", "en tres días",
     "en 7 días", "en una semana", "en siete días",
@@ -117,7 +113,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "al instante", "inmediatamente", "instantáneo", "instantanea",
     "resultados inmediatos", "efecto inmediato",
     "rápido y fácil", "exprés", "express",
-    # 5. Sensacionalismo / miedo
     "peligroso", "peligrosa", "mortal", "mortales",
     "asesino silencioso", "asesina silenciosa",
     "te está matando", "te mata", "te matará",
@@ -129,7 +124,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "increíble", "asombroso", "alucinante",
     "conspiración", "lo que te ocultan", "la verdad oculta",
     "ellos no quieren que sepas", "te mienten",
-    # 6. Transformación extrema / peso
     "transforma tu cuerpo", "transforma tu vida",
     "cambia tu vida", "nuevo tú", "nueva tú",
     "antes y después", "resultados increíbles",
@@ -141,7 +135,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "barriga plana", "abdomen plano en días",
     "rejuvenece 20 años", "rejuvenece 10 años",
     "eterna juventud", "juventud eterna", "inmortal",
-    # 7. Clickbait genérico
     "no vas a creer", "no lo vas a creer",
     "te sorprenderá", "te dejará impactado",
     "quedarás impactado", "quedarás asombrado",
@@ -150,13 +143,11 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "lo que nadie dice", "lo que nadie sabe",
     "el mejor del mundo", "el peor del mundo",
     "definitivo", "perfecto",
-    # 8. Enfermedades graves
     "cáncer", "cancer", "tumor", "tumores",
     "VIH", "SIDA", "sida",
     "alzheimer", "parkinson", "esclerosis",
     "leucemia", "infarto", "derrame cerebral",
     "ictus", "metástasis",
-    # 9. Otros problemáticos
     "solución", "elimina",
     "limpiar tu cuerpo", "limpieza total del cuerpo",
 ]
@@ -286,7 +277,6 @@ def deberia_publicar_ahora(estado):
         print("✅ Límite diario de videos largos alcanzado.")
         return False
 
-    # ⏰ Solo publicar dentro de la ventana 9:00-17:00 CDMX
     forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
     if not forzar and not (HORA_MIN_PUBLICAR <= ahora.hour < HORA_MAX_PUBLICAR):
         print(f"⏰ Fuera de ventana horaria ({ahora.hour}h CDMX). Solo publico entre {HORA_MIN_PUBLICAR}:00 y {HORA_MAX_PUBLICAR}:00.")
@@ -362,7 +352,6 @@ def obtener_curiosidad_catalogo(ingrediente):
 # 🔥 MOTOR DE KEYWORDS VIRALES + TÍTULOS SEGUROS
 # ================================================================
 def obtener_keywords_aleatorias_virales(cantidad=5):
-    """Selecciona keywords virales ponderadas por peso de búsqueda."""
     todas = []
     for categoria, kws in KEYWORDS_VIRALES.items():
         todas.extend(kws)
@@ -377,16 +366,13 @@ def obtener_keywords_aleatorias_virales(cantidad=5):
     return seleccionadas
 
 def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
-    """Sanitiza palabras prohibidas + inyecta keyword viral de alto volumen."""
     t = re.sub(r'#\w+', '', (titulo_ia or "").strip()).strip()
     lower = t.lower()
 
-    # 1) Si tiene palabras prohibidas → reemplazo total
     if any(p in lower for p in PALABRAS_PROHIBIDAS_TITULO):
         print("🛡️ Título con palabra prohibida → reemplazando por fórmula viral segura...")
         t = ""
 
-    # 2) Si no tiene keyword viral → inyectar patrón de búsqueda al inicio
     keywords_presentes = ["remedios", "salud natural", "medicina natural", "hierbas",
                           "para qué sirve", "beneficios", "propiedades", "cómo usar",
                           "herbolaria", "plantas medicinales", "remedio casero",
@@ -420,62 +406,36 @@ def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
 # 🎯 GENERADOR DE TAGS SEO ELITE (ESTILO VidIQ Premium)
 # ================================================================
 def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
-    """
-    Genera 20-25 tags optimizados estilo VidIQ Premium:
-    - Tags CORTOS (1-2 palabras): específicos del ingrediente
-    - Tags MEDIOS (3-4 palabras): problema + ingrediente
-    - Tags LARGOS (5+ palabras): long-tail keywords de búsqueda
-    - Tags GENERALES del nicho (canal/herbolaria)
-    - Tags del TÍTULO (extraídos automáticamente)
-    - Tags de SÍNTOMAS individuales
-    
-    Respeta el límite de 500 caracteres totales de YouTube.
-    """
     tags = []
     ing_lower = ingrediente.lower().strip()
     ing_words = ing_lower.split()
     
-    # ============================================================
-    # 1) TAGS CORTOS ESPECÍFICOS (ingrediente y variaciones)
-    # ============================================================
-    tags.append(ing_lower)  # "romero"
+    tags.append(ing_lower)
     if len(ing_words) > 1:
         tags.append(" ".join(ing_words[:2]))
     tags.append(f"planta {ing_lower}")
     tags.append(f"hierba {ing_lower}")
     
-    # ============================================================
-    # 2) TAGS MEDIOS ESPECÍFICOS (ingrediente + uso)
-    # ============================================================
     tags.append(f"remedio de {ing_lower}")
     tags.append(f"té de {ing_lower}")
     tags.append(f"propiedades del {ing_lower}")
     tags.append(f"beneficios del {ing_lower}")
     tags.append(f"para qué sirve el {ing_lower}")
     
-    # ============================================================
-    # 3) TAGS LARGOS LONG-TAIL (búsquedas reales tipo VidIQ)
-    # ============================================================
     tags.append(f"cómo preparar {ing_lower} remedio casero")
     tags.append(f"beneficios del {ing_lower} para la salud")
     tags.append(f"{ing_lower} usos en la herbolaria mexicana")
     tags.append(f"remedios naturales con {ing_lower}")
     
-    # ============================================================
-    # 4) TAGS DE SÍNTOMAS/PROBLEMAS (cada uno individual)
-    # ============================================================
     if problema:
         problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
-        for prob in problemas_individuales[:5]:  # máx 5 síntomas
+        for prob in problemas_individuales[:5]:
             prob_limpio = prob.lower().strip()
             if len(prob_limpio) > 3:
                 tags.append(prob_limpio)
                 tags.append(f"remedio natural para {prob_limpio}")
                 tags.append(f"{ing_lower} para {prob_limpio}")
     
-    # ============================================================
-    # 5) TAGS GENERALES DEL NICHO (canal/herbolaria/salud natural)
-    # ============================================================
     tags_generales = [
         "remedios naturales",
         "remedios caseros",
@@ -490,19 +450,12 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     ]
     tags.extend(tags_generales)
     
-    # ============================================================
-    # 6) TAGS DEL TÍTULO (extraídos automáticamente)
-    # ============================================================
     if titulo:
         palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if len(p) > 4]
-        # Tomar las 4 más relevantes que no estén ya
         for p in palabras_titulo[:6]:
             if p not in [t.lower() for t in tags]:
                 tags.append(p)
     
-    # ============================================================
-    # 7) TAGS DEL TEMA VIRAL
-    # ============================================================
     if tema_viral:
         for kw in tema_viral.get("keywords_cortas", [])[:2]:
             if kw.lower() not in [t.lower() for t in tags]:
@@ -511,26 +464,19 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
             if kw.lower() not in [t.lower() for t in tags]:
                 tags.append(kw.lower())
     
-    # ============================================================
-    # 8) LIMPIEZA + DEDUPLICACIÓN + LÍMITE DE 500 CARACTERES
-    # ============================================================
-    # Normalizar y deduplicar preservando orden
     tags_unicos = []
     vistos = set()
     for tag in tags:
         tag_limpio = re.sub(r'\s+', ' ', tag.strip().lower())
-        # Quitar palabras prohibidas
         if any(p in tag_limpio for p in PALABRAS_PROHIBIDAS_TITULO[:50]):
             continue
         if tag_limpio and tag_limpio not in vistos and len(tag_limpio) > 2:
             tags_unicos.append(tag_limpio)
             vistos.add(tag_limpio)
     
-    # Respetar límite de 500 caracteres de YouTube
     resultado = []
     total_chars = 0
     for tag in tags_unicos:
-        # +1 por la coma separadora
         if total_chars + len(tag) + 1 > 495:
             break
         resultado.append(tag)
@@ -539,7 +485,6 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     return ", ".join(resultado)
 
 def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
-    """Wrapper de compatibilidad (ya no se usa, pero se mantiene)."""
     return generar_tags_seo_elite(ingrediente, problema, "", tema_viral)
 
 # ================================================================
@@ -667,10 +612,8 @@ Devuelve ESTRICTAMENTE este JSON:
 
             data["ingrediente_real"] = data.get("ingrediente_real") or ingrediente
 
-            # 🔥 SANITIZAR + INYECTAR KEYWORDS VIRALES AL TÍTULO
             data["titulo"] = optimizar_titulo_largo(data.get("titulo"), data["ingrediente_real"], problema)
 
-            # 🔥 GENERAR TAGS SEO ELITE AUTOMÁTICAMENTE (estilo VidIQ)
             data["tags"] = generar_tags_seo_elite(
                 data["ingrediente_real"], 
                 problema, 
@@ -752,7 +695,7 @@ def descargar_imagen(url, salida):
     return salida
 
 # ================================================================
-# 🎨 IMÁGENES DE SEGMENTOS: FLUX CLOUDFLARE (3 intentos) → PEXELS
+# 🎨 IMÁGENES DE SEGMENTOS: FLUX CLOUDFLARE (CORREGIDO) → PEXELS
 # ================================================================
 # 🔥 PROMPT VIRAL: colores saturados, luz dramática y espacio limpio para texto
 SEGMENTO_FLUX_SUFFIX = (", ultra vivid saturated colors, dramatic cinematic lighting, high-contrast macro photography, "
@@ -760,11 +703,17 @@ SEGMENTO_FLUX_SUFFIX = (", ultra vivid saturated colors, dramatic cinematic ligh
                         "clean negative space in the lower third for text overlay, "
                         "no text, no watermark, no people, widescreen 16:9")
 
-def _flux_cloudflare_imagen(query, salida, ancho=1920, alto=1080):
-    """Genera UNA imagen con Flux vía Cloudflare Workers AI. Lanza excepción si falla."""
+def _flux_cloudflare_imagen(query, salida):
+    """Genera UNA imagen con Flux vía Cloudflare Workers AI.
+    CORREGIDO: flux-1-schnell NO soporta width/height en Cloudflare Workers AI.
+    """
     url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
     headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-    payload = {"prompt": query + SEGMENTO_FLUX_SUFFIX, "width": ancho, "height": alto, "steps": 4}
+    # ✅ CORRECCIÓN: Solo prompt y steps (sin width/height)
+    payload = {
+        "prompt": query + SEGMENTO_FLUX_SUFFIX,
+        "steps": 4
+    }
     r = requests.post(url, headers=headers, json=payload, timeout=90)
     r.raise_for_status()
     data = r.json()
@@ -795,7 +744,6 @@ def buscar_imagen_segmento(query_en, salida):
     else:
         print("   ⚠️ Sin keys de Cloudflare configuradas. Usando Pexels para el segmento.")
 
-    # ---- Fallback Pexels ----
     url_img = buscar_imagen_pexels_horizontal(query_en)
     if url_img:
         try:
@@ -808,7 +756,6 @@ def buscar_imagen_segmento(query_en, salida):
 # 💥 BOOST DE COLOR ESTILO VIRAL (aplica a TODA imagen de segmento)
 # ================================================================
 def potenciar_imagen_segmento(img_path):
-    """Sube saturación, contraste, brillo y nitidez para que el fondo impacte como miniatura viral."""
     try:
         with Image.open(img_path) as im:
             im = im.convert("RGB")
@@ -826,10 +773,6 @@ def potenciar_imagen_segmento(img_path):
 # 🖼️ TEXTO QUEMADO ESTILO VIRAL + COMPOSICIÓN DE PRODUCTO
 # ================================================================
 def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
-    """Quema texto estilo VIRAL sobre la imagen del segmento:
-    - hook (center): letras GIGANTES amarillas con degradado + contorno negro + badge rojo
-    - resto (lower): banner ROJO con texto blanco inclinado, sobre viñeta inferior
-    """
     try:
         fuente = asegurar_fuente_thumbnail()
         with Image.open(img_path) as img:
@@ -842,7 +785,6 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
             return salida
 
         if estilo == "center":
-            # Letras gigantes con degradado amarillo centradas + placa oscura + badge rojo
             bloque = _fit(texto_up, fuente, 170, 70, int(ANCHO * 0.92), render_texto_gradiente)
             bloque = bloque.rotate(2, expand=True, resample=Image.BICUBIC)
             x = (ANCHO - bloque.width) // 2
@@ -853,7 +795,6 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
             badge = render_banner("HERBOLARIA TRADICIONAL", fuente, 46, bg=(198, 30, 30))
             capa.paste(badge, ((ANCHO - badge.width) // 2, y + bloque.height + 60), badge)
         else:
-            # Viñeta inferior + banner rojo inclinado con texto blanco
             for yy in range(ALTO - 380, ALTO):
                 a = int(150 * ((yy - (ALTO - 380)) / 380))
                 d.line([(0, yy), (ANCHO, yy)], fill=(0, 0, 0, a))
@@ -871,7 +812,6 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
         return img_path
 
 def _cargar_fondo(url_o_ruta):
-    """Acepta ruta local (Flux) o URL (Pexels)."""
     if os.path.exists(url_o_ruta):
         return Image.open(url_o_ruta).convert("RGB")
     r = requests.get(url_o_ruta, timeout=20)
@@ -955,12 +895,12 @@ def efecto_ken_burns(img_path, duracion, direccion="in"):
 # ================================================================
 def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     clips_video, clips_audio = [], []
-    duraciones_segmentos = []  # 🔥 NUEVO: duraciones reales de cada segmento
+    duraciones_segmentos = []
     
     for i, seg in enumerate(segmentos_img):
         audio = AudioFileClip(seg["audio_path"])
         dur = audio.duration + (PAUSA_ENTRE_SEGMENTOS if i < len(segmentos_img) - 1 else 0)
-        duraciones_segmentos.append(dur)  # guardar duración real
+        duraciones_segmentos.append(dur)
         vc = efecto_ken_burns(seg["img_path"], dur, "in" if i % 2 == 0 else "out")
         clips_video.append(vc)
         clips_audio.append(audio)
@@ -987,7 +927,6 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
 
     video = video.set_audio(audio_final)
 
-    # Overlays: aviso legal (inicio) + CTA (final)
     clips_overlays = [video]
     aviso = crear_overlay_aviso()
     if aviso:
@@ -1010,16 +949,11 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
 # 🕐 GENERADOR DE CAPÍTULOS DINÁMICOS (basado en duraciones reales)
 # ================================================================
 def formatear_timestamp(segundos):
-    """Convierte segundos a formato MM:SS para capítulos de YouTube."""
     minutos = int(segundos) // 60
     segs = int(segundos) % 60
     return f"{minutos:02d}:{segs:02d}"
 
 def generar_capitulos_dinamicos(duraciones_segmentos):
-    """
-    Genera timestamps de capítulos basados en las duraciones REALES de cada audio.
-    Etiquetas de capítulo optimizadas para SEO (con keyword del segmento).
-    """
     nombres_segmentos = [
         "Introducción",
         "El problema",
@@ -1043,7 +977,7 @@ def generar_capitulos_dinamicos(duraciones_segmentos):
     return "\n".join(capitulos)
 
 # ================================================================
-# 🎨 MOTOR DE FONDOS FLUX PARA MINIATURA (Cloudflare prioritario)
+# 🎨 MOTOR DE FONDOS FLUX PARA MINIATURA (Cloudflare prioritario - CORREGIDO)
 # ================================================================
 FLUX_PROMPT_SUFFIX = (", dramatic macro photography, vivid saturated colors, cinematic lighting, "
                       "professional youtube thumbnail background, no text, no watermark, widescreen 16:9")
@@ -1054,10 +988,16 @@ def _guardar_fondo(bytes_img, salida):
     return salida
 
 def buscar_fondo_flux_cloudflare(query, salida="bg_ia.jpg"):
-    """Flux.1-schnell vía Cloudflare Workers AI (10,000 neuronas/día gratis)."""
+    """Flux.1-schnell vía Cloudflare Workers AI.
+    CORREGIDO: Sin width/height (no soportados por este modelo).
+    """
     url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
     headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-    payload = {"prompt": query + FLUX_PROMPT_SUFFIX, "width": 1280, "height": 720, "steps": 4}
+    # ✅ CORRECCIÓN: Solo prompt y steps
+    payload = {
+        "prompt": query + FLUX_PROMPT_SUFFIX,
+        "steps": 4
+    }
     r = requests.post(url, headers=headers, json=payload, timeout=120)
     r.raise_for_status()
     data = r.json()
@@ -1067,7 +1007,6 @@ def buscar_fondo_flux_cloudflare(query, salida="bg_ia.jpg"):
     return _guardar_fondo(base64.b64decode(b64), salida)
 
 def buscar_fondo_flux_huggingface(query, salida="bg_ia.jpg"):
-    """Flux.1-schnell vía Hugging Face Inference API (segundo proveedor)."""
     url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
     headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
     payload = {"inputs": query + FLUX_PROMPT_SUFFIX}
@@ -1079,7 +1018,6 @@ def buscar_fondo_flux_huggingface(query, salida="bg_ia.jpg"):
     return _guardar_fondo(r.content, salida)
 
 def buscar_fondo_ia_flux(query, salida="bg_ia.jpg", intentos=3):
-    """Intenta Flux hasta 3 veces (Cloudflare primero, HuggingFace después). Devuelve None si falla."""
     providers = []
     if CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID:
         providers.append(("Cloudflare", buscar_fondo_flux_cloudflare))
@@ -1108,7 +1046,6 @@ FONT_THUMB_URL = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regul
 FONT_THUMB_LOCAL = "Anton-Regular.ttf"
 
 def asegurar_fuente_thumbnail():
-    """Descarga una vez la fuente Anton (gratis, licencia OFL)."""
     if os.path.exists(FONT_THUMB_LOCAL):
         return FONT_THUMB_LOCAL
     try:
@@ -1127,7 +1064,6 @@ def _medir(texto, font, stroke=0):
     return d.textbbox((0, 0), texto, font=font, stroke_width=stroke)
 
 def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90), bottom=(255, 150, 0)):
-    """Texto GIGANTE con degradado amarillo→naranja y contorno negro (CORREGIDO)."""
     font = ImageFont.truetype(font_path, size)
     b = _medir(texto, font, stroke)
     w = (b[2] - b[0]) + stroke * 2 + 8
@@ -1137,7 +1073,6 @@ def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90)
     ox, oy = stroke + 4 - b[0], stroke + 4 - b[1]
     d.text((ox, oy), texto, font=font, fill=(10, 10, 10, 255), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
 
-    # ✅ FIX NUMPY: gradiente con broadcast correcto (h,3) → (h,w,3)
     grad = np.zeros((h, w, 4), dtype=np.uint8)
     t = np.linspace(0, 1, h)[:, None]
     grad_rgb = (np.array(top, float) * (1 - t) + np.array(bottom, float) * t).astype(np.uint8)
@@ -1161,7 +1096,6 @@ def render_texto_solido(texto, font_path, size, fill=(255, 255, 255), stroke=8):
     return img
 
 def render_banner(texto, font_path, size, bg=(198, 30, 30), fg=(255, 255, 255), borde=(255, 235, 59), pad_x=28, pad_y=12):
-    """Caja redondeada de color con texto (banner rojo/verde estilo viral)."""
     font = ImageFont.truetype(font_path, size)
     b = _medir(texto, font)
     tw, th = b[2] - b[0], b[3] - b[1]
@@ -1184,7 +1118,6 @@ def _fit(texto, font_path, size_max, size_min, ancho_max, renderer, **kw):
     return renderer(texto, font_path, size_min, **kw)
 
 def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_seguro, salida="thumb_largo.jpg"):
-    """Miniatura V3 anti-frágil: fondo + textos izquierda + producto SIN fondo a la derecha."""
     try:
         fuente = asegurar_fuente_thumbnail()
         with Image.open(img_base) as bgf:
@@ -1194,7 +1127,6 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
         bg = ImageEnhance.Brightness(bg).enhance(1.05)
         bg = bg.convert("RGBA")
 
-        # Degradado lateral + inferior para que el texto resalte
         capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
         d = ImageDraw.Draw(capa)
         for x in range(0, 880):
@@ -1203,7 +1135,6 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
             d.line([(0, y), (1280, y)], fill=(0, 0, 0, int(140 * ((y - 540) / 180))))
         bg = Image.alpha_composite(bg, capa)
 
-        # ---- Bloques de texto (con fallback si el degradado falla) ----
         bloques = []
         linea1 = (" ".join(ingrediente.split()[:2]) or "REMEDIOS NATURALES").upper()
         try:
@@ -1239,7 +1170,6 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
             if y > 545:
                 break
 
-        # ---- PRODUCTO recortado con halo (bloque independiente: SIEMPRE se ejecuta) ----
         try:
             rp = requests.get(url_producto, timeout=20, verify=False)
             prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
@@ -1262,7 +1192,6 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
         except Exception as e:
             print(f"⚠️ Producto en miniatura falló: {e}")
 
-        # ---- Barra inferior con título seguro ----
         bar = Image.new("RGBA", bg.size, (0, 0, 0, 0))
         db = ImageDraw.Draw(bar)
         db.rectangle([(0, 648), (1280, 720)], fill=(0, 0, 0, 175))
@@ -1277,7 +1206,7 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
         return None
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE (SEO viral + token auto-refresh + contactos arriba)
+# 📤 SUBIR A YOUTUBE (CON REINTENTOS AUTOMÁTICOS PARA ERRORES 5xx)
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -1292,7 +1221,6 @@ def obtener_credenciales_youtube():
     return creds
 
 def fijar_comentario_contacto(youtube, video_id):
-    """Fija un comentario con los contactos + contraseña del bot."""
     try:
         texto = (
             "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n\n"
@@ -1317,7 +1245,6 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
 
-    # 🔥 DESCRIPCIÓN SIN ENLACES EXTERNOS + CAPÍTULOS DINÁMICOS + TAGS SEO
     descripcion = f"""{gancho}
 
 {contexto}
@@ -1352,10 +1279,31 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
                     "categoryId": "26", "defaultLanguage": "es", "defaultAudioLanguage": "es"},
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True},
     }
-    media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
-    response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
-    video_id = response["id"]
-    print(f"✅ Video largo subido con SEO viral: https://youtu.be/{video_id}")
+    
+    # 🔥 REINTENTOS AUTOMÁTICOS PARA ERRORES TEMPORALES (502, 503, 504)
+    video_id = None
+    for intento in range(1, 4):  # Hasta 3 intentos
+        try:
+            print(f"📤 Subiendo video a YouTube (intento {intento}/3)...")
+            media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
+            response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
+            video_id = response["id"]
+            print(f"✅ Video largo subido con SEO viral: https://youtu.be/{video_id}")
+            break
+        except Exception as e:
+            error_str = str(e)
+            if "502" in error_str or "503" in error_str or "504" in error_str or "Bad Gateway" in error_str:
+                print(f"⚠️ Error temporal de YouTube (intento {intento}/3): {error_str[:100]}...")
+                if intento < 3:
+                    espera = 30 * intento  # 30s, 60s, 90s
+                    print(f"⏳ Esperando {espera}s antes de reintentar...")
+                    time.sleep(espera)
+                else:
+                    print(f"❌ Falló tras 3 intentos. Error: {e}")
+                    raise
+            else:
+                print(f"❌ Error subiendo a YouTube: {e}")
+                raise
 
     if thumb_path and os.path.exists(thumb_path):
         try:
@@ -1394,7 +1342,6 @@ def main():
     orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
     segmentos_img = []
 
-    # 🎨 Fondo del producto: Flux (3 intentos) → Pexels
     fondo_producto = buscar_imagen_segmento(
         guion["segmentos"]["producto"].get("query_pexels", f"{ingrediente_hablado} natural"),
         "bg_producto.jpg"
@@ -1406,19 +1353,15 @@ def main():
         img_path = f"img_largo_{i}.jpg"
 
         if clave in ("producto", "cta"):
-            # Producto recortado sobre fondo Flux/Pexels
             if not componer_producto_horizontal(producto["imagen_url"], fondo_producto, img_path):
-                # Si falla la composición, usa el fondo tal cual
                 if os.path.exists(fondo_producto):
                     with Image.open(fondo_producto) as im:
                         ImageOps.fit(im.convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS).save(img_path, "JPEG", quality=90)
                 else:
                     buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
         else:
-            # 🎨 IMAGEN DEL SEGMENTO: Flux Cloudflare (3 intentos) → Pexels
             buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
 
-        # 💥 Boost de color estilo viral ANTES de quemar el texto
         img_path = potenciar_imagen_segmento(img_path)
 
         tp = seg.get("texto_pantalla", "")
@@ -1431,16 +1374,13 @@ def main():
             sys.exit(1)
         segmentos_img.append({"img_path": img_path, "audio_path": audio_path})
 
-    # 🎥 MONTAR VIDEO (ahora devuelve duraciones reales por segmento)
     video_path, duraciones_segmentos, duracion_total = montar_video_largo(segmentos_img)
     
-    # 🕐 GENERAR CAPÍTULOS DINÁMICOS basados en duraciones reales
     capitulos_dinamicos = generar_capitulos_dinamicos(duraciones_segmentos)
     print(f"\n⏱️ Capítulos generados dinámicamente:")
     print(capitulos_dinamicos)
     print(f"⏱️ Duración total del video: {formatear_timestamp(duracion_total)}")
 
-    # 🖼️ Miniatura V3: fondo Flux (3 intentos) → Pexels como siempre si Flux falla
     base_thumb = buscar_fondo_ia_flux(f"{ingrediente_hablado} plant natural vivid macro")
     if not base_thumb:
         url_bg = buscar_imagen_pexels_horizontal(f"{ingrediente_hablado} plant natural")
@@ -1450,7 +1390,6 @@ def main():
             base_thumb = "img_largo_2.jpg"
     thumb = crear_miniatura_larga(base_thumb, producto["imagen_url"], ingrediente_hablado, problema, guion["titulo"])
 
-    # 📤 SUBIR A YOUTUBE CON CAPÍTULOS DINÁMICOS
     video_id = subir_video_largo(
         video_path, thumb, guion["titulo"], guion["tags"],
         guion["gancho_descripcion"], guion["contexto_descripcion"],
