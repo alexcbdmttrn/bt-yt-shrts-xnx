@@ -64,8 +64,11 @@ PAUSA_ENTRE_SEGMENTOS = 0.5
 ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
-HORA_MIN_PUBLICAR = 9
-HORA_MAX_PUBLICAR = 17
+# ⏰ NUEVA VENTANA DE PUBLICACIÓN (hora CDMX)
+# Publica en CUALQUIER hora excepto en la madrugada (0:00 a 4:00)
+# Es decir: permitido de 4:00 AM a 11:59 PM CDMX
+HORA_EXCLUIR_INICIO = 0   # Medianoche (0:00)
+HORA_EXCLUIR_FIN = 4      # Hasta las 4:00 AM (excluido)
 
 FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
@@ -269,10 +272,14 @@ def deberia_publicar_ahora(estado):
         print("✅ Límite diario de videos largos alcanzado.")
         return False
 
+    # ⏰ NUEVA LÓGICA: Bloquear SOLO la madrugada (0:00 a 4:00)
+    # Permite publicar de 4:00 AM a 11:59 PM CDMX (20 horas al día)
     forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
-    if not forzar and not (HORA_MIN_PUBLICAR <= ahora.hour < HORA_MAX_PUBLICAR):
-        print(f"⏰ Fuera de ventana horaria ({ahora.hour}h CDMX). Solo publico entre {HORA_MIN_PUBLICAR}:00 y {HORA_MAX_PUBLICAR}:00.")
-        return False
+    if not forzar:
+        hora_actual = ahora.hour
+        if HORA_EXCLUIR_INICIO <= hora_actual < HORA_EXCLUIR_FIN:
+            print(f"🌙 Hora de madrugada ({hora_actual}h CDMX). No publico entre {HORA_EXCLUIR_INICIO}:00 y {HORA_EXCLUIR_FIN}:00 para evitar bajo alcance.")
+            return False
 
     ultima = estado.get("ultima_publicacion")
     if ultima:
@@ -389,25 +396,18 @@ def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
 # 🎯 CLASIFICADOR DE INGREDIENTES (evita tags inválidos)
 # ================================================================
 def clasificar_ingrediente(ingrediente):
-    """
-    Detecta qué tipo de ingrediente es para evitar generar tags absurdos
-    como "planta omega 3" o "té de colágeno".
-    """
     ing_lower = ingrediente.lower()
     
-    # Ácidos grasos, aceites y nutrientes
     aceites_grasas = ["omega", "dha", "epa", "ácido graso", "aceite de pescado",
                      "aceite de krill", "linaza", "chía", "linoleico"]
     if any(k in ing_lower for k in aceites_grasas):
         return "lipido"
     
-    # Proteínas, colágenos, aminoácidos
     proteinas = ["colágeno", "colageno", "proteína", "proteina", "aminoácido", 
                  "aminoacido", "whey", "creatina", "bcaa", "arginina", "glicina"]
     if any(k in ing_lower for k in proteinas):
         return "proteina"
     
-    # Vitaminas y minerales
     vitaminas = ["vitamina", "vit ", "vit.", "ácido fólico", "acido folico", 
                  "biotina", "retinol", "tiamina", "riboflavina"]
     minerales = ["magnesio", "zinc", "hierro", "calcio", "potasio", "selenio", 
@@ -415,7 +415,6 @@ def clasificar_ingrediente(ingrediente):
     if any(k in ing_lower for k in vitaminas + minerales):
         return "micronutriente"
     
-    # Frutas
     frutas = ["naranja", "limón", "limon", "fresa", "manzana", "plátano", "platano",
               "piña", "piña", "mango", "papaya", "arándano", "arandano", "uva",
               "sandía", "sandia", "kiwi", "guayaba", "granada", "cereza", "ciruela",
@@ -423,46 +422,31 @@ def clasificar_ingrediente(ingrediente):
     if any(k in ing_lower for k in frutas):
         return "fruta"
     
-    # Hongos, levaduras, probióticos
     hongos_probioticos = ["hongo", "reishi", "shiitake", "melena de león", 
                          "cordyceps", "levadura", "probiótico", "probiotico", 
                          "lactobacillus", "bifidobacterium"]
     if any(k in ing_lower for k in hongos_probioticos):
         return "probiotico"
     
-    # Raíces, tubérculos, especias (NO son "hierbas" en sentido estricto)
     raices = ["cúrcuma", "curcuma", "jengibre", "ginseng", "maca", "ashwagandha",
               "valeriana", "regaliz", "alcachofa", "betabel", "remolacha", "camote"]
     if any(k in ing_lower for k in raices):
         return "raiz"
     
-    # Por defecto: planta/herbolaria
     return "planta"
 
 # ================================================================
 # 🎯 GENERADOR DE TAGS SEO ELITE (CORREGIDO - sin tags inválidos)
 # ================================================================
 def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
-    """
-    Genera tags optimizados para YouTube:
-    - Cada tag <= 30 caracteres (regla de YouTube)
-    - Sin tags absurdos (ej: "planta omega 3" cuando Omega 3 no es planta)
-    - Validación final para evitar rechazo de YouTube
-    """
     tags = []
     ing_lower = ingrediente.lower().strip()
     tipo = clasificar_ingrediente(ingrediente)
     
     print(f"   🎯 Ingrediente clasificado como: {tipo}")
     
-    # ============================================================
-    # 1) TAGS CORTOS ESPECÍFICOS (siempre válidos)
-    # ============================================================
-    tags.append(ing_lower)  # "omega 3"
+    tags.append(ing_lower)
     
-    # ============================================================
-    # 2) TAGS SEGÚN TIPO DE INGREDIENTE
-    # ============================================================
     if tipo == "planta":
         tags.extend([
             f"planta {ing_lower}",
@@ -516,26 +500,17 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
             f"{ing_lower} beneficios",
         ])
     
-    # ============================================================
-    # 3) TAGS DE PROPIEDADES/BENEFICIOS (universales)
-    # ============================================================
     tags.extend([
         f"beneficios de {ing_lower}",
         f"propiedades de {ing_lower}",
         f"para qué sirve {ing_lower}",
     ])
     
-    # ============================================================
-    # 4) TAGS LONG-TAIL (búsquedas reales)
-    # ============================================================
     tags.extend([
         f"{ing_lower} en remedios naturales",
         f"{ing_lower} usos y beneficios",
     ])
     
-    # ============================================================
-    # 5) TAGS DE SÍNTOMAS/PROBLEMAS (cada uno individual)
-    # ============================================================
     if problema:
         problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
         for prob in problemas_individuales[:5]:
@@ -546,9 +521,6 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
                 if len(tag_rem) <= 30:
                     tags.append(tag_rem)
     
-    # ============================================================
-    # 6) TAGS GENERALES DEL NICHO
-    # ============================================================
     tags_generales = [
         "remedios naturales",
         "remedios caseros",
@@ -561,7 +533,6 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         "suplementos naturales",
     ]
     
-    # Solo agregar "herbolaria mexicana" y similares si aplica
     if tipo == "planta":
         tags_generales.extend([
             "herbolaria mexicana",
@@ -572,56 +543,37 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     
     tags.extend(tags_generales)
     
-    # ============================================================
-    # 7) TAGS DEL TÍTULO (extraídos automáticamente)
-    # ============================================================
     if titulo:
         palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if 4 < len(p) <= 20]
         for p in palabras_titulo[:4]:
             if p not in [t.lower() for t in tags]:
                 tags.append(p)
     
-    # ============================================================
-    # 8) TAGS DEL TEMA VIRAL
-    # ============================================================
     if tema_viral:
         for kw in tema_viral.get("keywords_cortas", [])[:2]:
             kw_l = kw.lower()
             if len(kw_l) <= 30 and kw_l not in [t.lower() for t in tags]:
                 tags.append(kw_l)
     
-    # ============================================================
-    # 9) LIMPIEZA + VALIDACIÓN FINAL (CRÍTICO)
-    # ============================================================
     tags_unicos = []
     vistos = set()
     for tag in tags:
-        # Normalizar
         tag_limpio = re.sub(r'\s+', ' ', tag.strip().lower())
         
-        # REGLAS DE YOUTUBE (evitar invalidTags):
-        # 1. Longitud máxima por tag: 30 caracteres
         if len(tag_limpio) > 30:
             continue
-        # 2. Longitud mínima: 2 caracteres
         if len(tag_limpio) < 2:
             continue
-        # 3. Solo letras, números y espacios (sin caracteres raros)
         if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
             continue
-        # 4. No palabras prohibidas
         if any(p in tag_limpio for p in PALABRAS_PROHIBIDAS_TITULO[:50]):
             continue
-        # 5. No duplicados
         if tag_limpio in vistos:
             continue
             
         tags_unicos.append(tag_limpio)
         vistos.add(tag_limpio)
     
-    # ============================================================
-    # 10) RESPETAR LÍMITE DE 500 CARACTERES TOTALES
-    # ============================================================
     resultado = []
     total_chars = 0
     for tag in tags_unicos:
@@ -630,7 +582,6 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         resultado.append(tag)
         total_chars += len(tag) + 1
     
-    # Validación final: mínimo 3 tags, máximo 30
     if len(resultado) < 3:
         resultado = ["remedios naturales", "salud natural", ingrediente.lower()][:3]
     
@@ -1346,7 +1297,6 @@ def fijar_comentario_contacto(youtube, video_id):
         print(f"⚠️ Error comentario: {e}")
 
 def validar_tags_youtube(tags_str):
-    """Valida y limpia los tags ANTES de enviarlos a YouTube."""
     if not tags_str:
         return "remedios naturales, salud natural, bienestar"
     
@@ -1354,14 +1304,9 @@ def validar_tags_youtube(tags_str):
     tags_validos = []
     
     for tag in tags_lista:
-        # Reglas de YouTube:
-        # - Máximo 30 caracteres por tag
-        # - Solo letras, números y espacios
-        # - Sin caracteres especiales
         tag_limpio = re.sub(r'\s+', ' ', tag).strip()
         
         if len(tag_limpio) > 30:
-            # Truncar inteligentemente
             tag_limpio = tag_limpio[:27] + "..."
         
         if len(tag_limpio) < 2:
@@ -1373,11 +1318,9 @@ def validar_tags_youtube(tags_str):
         if tag_limpio not in tags_validos:
             tags_validos.append(tag_limpio)
     
-    # Mínimo 3 tags
     if len(tags_validos) < 3:
         tags_validos = ["remedios naturales", "salud natural", "bienestar"]
     
-    # Máximo 30 tags y 500 caracteres totales
     resultado = []
     total_chars = 0
     for tag in tags_validos[:30]:
@@ -1394,7 +1337,6 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
     
-    # 🔥 VALIDAR TAGS ANTES DE ENVIAR
     tags_validados = validar_tags_youtube(tags_str)
     print(f"🏷️ Tags validados para YouTube ({len(tags_validados.split(','))} tags)")
 
@@ -1475,6 +1417,7 @@ def main():
     print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~3-4 min)")
     print("🔥 SEO ELITE + Capítulos dinámicos + Tags VidIQ + Segmentos con Flux")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"⏰ Ventana de publicación: 4:00 AM a 11:59 PM CDMX (excepto madrugada)")
 
     estado = cargar_estado()
     if not deberia_publicar_ahora(estado):
