@@ -56,8 +56,8 @@ CATALOGO_CURIOSIDADES = "catalogo_curiosidades_salud.json"
 ANCHO, ALTO = 1920, 1080
 
 MAX_LARGOS_DIA = 1
-INTERVALO_MIN_HORAS = 20
-INTERVALO_MAX_HORAS = 26
+INTERVALO_MIN_HORAS = 18
+INTERVALO_MAX_HORAS = 24
 RETRASO_MAX_MINUTOS = 30
 PAUSA_ENTRE_SEGMENTOS = 0.5
 
@@ -65,10 +65,8 @@ ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
 # ⏰ NUEVA VENTANA DE PUBLICACIÓN (hora CDMX)
-# Publica en CUALQUIER hora excepto en la madrugada (0:00 a 4:00)
-# Es decir: permitido de 4:00 AM a 11:59 PM CDMX
-HORA_EXCLUIR_INICIO = 0   # Medianoche (0:00)
-HORA_EXCLUIR_FIN = 4      # Hasta las 4:00 AM (excluido)
+HORA_EXCLUIR_INICIO = 0
+HORA_EXCLUIR_FIN = 4
 
 FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
@@ -216,12 +214,18 @@ TEMAS_VIRALES_SALUD = [
     {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "herbolaria mexicana", "tradición"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional mexicana", "herbolaria que pocos conocen"], "ctr_potencial": 9.8},
 ]
 
+# ================================================================
+# 🎤 VOCES MEJORADAS (8 voces con diferentes estilos)
+# ================================================================
 VOCES_DISPONIBLES = [
-    {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "estilo": "profesional"},
-    {"voz": "es-MX-DaliaNeural", "velocidad": "+10%", "estilo": "claro"},
-    {"voz": "es-ES-ElviraNeural", "velocidad": "+12%", "estilo": "entusiasta"},
-    {"voz": "es-CO-SalomeNeural", "velocidad": "+10%", "estilo": "natural"},
-    {"voz": "es-AR-ElenaNeural", "velocidad": "+9%", "estilo": "cálido"},
+    {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "estilo": "profesional México"},
+    {"voz": "es-MX-DaliaNeural", "velocidad": "+10%", "estilo": "claro México"},
+    {"voz": "es-ES-ElviraNeural", "velocidad": "+12%", "estilo": "entusiasta España"},
+    {"voz": "es-ES-AlvaroNeural", "velocidad": "+10%", "estilo": "profesional España"},
+    {"voz": "es-CO-SalomeNeural", "velocidad": "+10%", "estilo": "natural Colombia"},
+    {"voz": "es-AR-ElenaNeural", "velocidad": "+9%", "estilo": "cálido Argentina"},
+    {"voz": "es-US-PalomaNeural", "velocidad": "+10%", "estilo": "neutral USA"},
+    {"voz": "es-MX-BeatrizNeural", "velocidad": "+11%", "estilo": "amigable México"},
 ]
 
 # ================================================================
@@ -272,8 +276,6 @@ def deberia_publicar_ahora(estado):
         print("✅ Límite diario de videos largos alcanzado.")
         return False
 
-    # ⏰ NUEVA LÓGICA: Bloquear SOLO la madrugada (0:00 a 4:00)
-    # Permite publicar de 4:00 AM a 11:59 PM CDMX (20 horas al día)
     forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
     if not forzar:
         hora_actual = ahora.hour
@@ -711,34 +713,82 @@ Devuelve ESTRICTAMENTE este JSON:
             time.sleep(8)
 
 # ================================================================
-# 🎤 VOZ CON FALLBACK
+# 🎤 VOZ CON REINTENTOS + FALLBACK INTELIGENTE
 # ================================================================
 def validar_voz():
+    """Prueba cada voz hasta encontrar una que funcione."""
     for voz in VOCES_DISPONIBLES:
         try:
+            print(f"🎤 Probando voz: {voz['voz']} ({voz['estilo']})...")
             async def test():
-                c = edge_tts.Communicate("Prueba de voz.", voz["voz"], rate=voz["velocidad"])
+                c = edge_tts.Communicate("Prueba de voz para verificar disponibilidad.", voz["voz"], rate=voz["velocidad"])
                 await c.save("test_voz.mp3")
             asyncio.new_event_loop().run_until_complete(test())
             if os.path.exists("test_voz.mp3") and os.path.getsize("test_voz.mp3") > 100:
                 os.remove("test_voz.mp3")
-                print(f"🎤 Voz seleccionada: {voz['voz']} ({voz['estilo']})")
+                print(f"✅ Voz seleccionada: {voz['voz']} ({voz['estilo']})")
                 return voz
-        except Exception:
+        except Exception as e:
+            print(f"⚠️ Voz {voz['voz']} no disponible: {str(e)[:100]}")
             continue
+    print("❌ Ninguna voz disponible, usando la primera por defecto")
     return VOCES_DISPONIBLES[0]
 
-def generar_audio(texto, path, voz):
+def generar_audio(texto, path, voz, max_intentos=3):
+    """
+    Genera audio con reintentos automáticos.
+    Si falla una voz, prueba con las siguientes disponibles.
+    """
     texto_limpio = re.sub(r'[^\w\sáéíóúüñÁÉÍÓÚÜÑ0-9\s.,;:!?¿¡\'\"]', '', texto)
-    async def _gen():
-        c = edge_tts.Communicate(texto_limpio, voz["voz"], rate=voz["velocidad"])
-        await c.save(path)
-    try:
-        asyncio.new_event_loop().run_until_complete(_gen())
-        if os.path.exists(path) and os.path.getsize(path) > 100:
-            return path
-    except Exception as e:
-        print(f"⚠️ Error audio: {e}")
+    
+    # Intentar con la voz principal
+    for intento in range(max_intentos):
+        try:
+            async def _gen():
+                c = edge_tts.Communicate(texto_limpio, voz["voz"], rate=voz["velocidad"])
+                await c.save(path)
+            asyncio.new_event_loop().run_until_complete(_gen())
+            
+            if os.path.exists(path) and os.path.getsize(path) > 100:
+                if intento > 0:
+                    print(f"   ✅ Audio generado en intento {intento+1}/{max_intentos}")
+                return path
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "403" in error_msg or "401" in error_msg or "Forbidden" in error_msg:
+                print(f"   ⚠️ Voz {voz['voz']} bloqueada (intento {intento+1}/{max_intentos}): {error_msg[:80]}")
+            else:
+                print(f"   ⚠️ Error generando audio (intento {intento+1}/{max_intentos}): {error_msg[:80]}")
+            
+            if intento < max_intentos - 1:
+                espera = 2 ** intento  # 1s, 2s, 4s
+                print(f"   ⏳ Esperando {espera}s antes de reintentar...")
+                time.sleep(espera)
+    
+    # Si falló con la voz principal, intentar con otras voces
+    print(f"   🔄 Voz {voz['voz']} falló tras {max_intentos} intentos. Probando voces alternativas...")
+    for voz_alt in VOCES_DISPONIBLES:
+        if voz_alt["voz"] == voz["voz"]:
+            continue  # Ya probamos esta
+        
+        try:
+            print(f"   🎤 Probando voz alternativa: {voz_alt['voz']}...")
+            async def _gen_alt():
+                c = edge_tts.Communicate(texto_limpio, voz_alt["voz"], rate=voz_alt["velocidad"])
+                await c.save(path)
+            asyncio.new_event_loop().run_until_complete(_gen_alt())
+            
+            if os.path.exists(path) and os.path.getsize(path) > 100:
+                print(f"   ✅ Audio generado con voz alternativa: {voz_alt['voz']}")
+                return path
+                
+        except Exception as e:
+            print(f"   ⚠️ Voz alternativa {voz_alt['voz']} también falló: {str(e)[:60]}")
+            continue
+    
+    # Si todas las voces fallaron
+    print(f"   ❌ Todas las voces fallaron para este segmento")
     return None
 
 # ================================================================
@@ -1464,8 +1514,9 @@ def main():
             img_path = quemar_texto_pantalla(img_path, tp, img_path, estilo="center" if clave == "hook" else "lower")
 
         audio_path = f"audio_largo_{i}.mp3"
-        if not generar_audio(seg["texto"], audio_path, voz):
-            print(f"❌ Falló audio del segmento {clave}")
+        audio_generado = generar_audio(seg["texto"], audio_path, voz, max_intentos=3)
+        if not audio_generado:
+            print(f"❌ Falló audio del segmento {clave} tras todos los intentos")
             sys.exit(1)
         segmentos_img.append({"img_path": img_path, "audio_path": audio_path})
 
