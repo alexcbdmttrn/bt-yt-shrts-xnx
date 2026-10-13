@@ -395,21 +395,31 @@ def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
     return t[:70]
 
 # ================================================================
-# 🎯 CLASIFICADOR DE INGREDIENTES (evita tags inválidos)
+# 🎯 CLASIFICADOR DE INGREDIENTES MEJORADO
 # ================================================================
 def clasificar_ingrediente(ingrediente):
+    """Clasifica el ingrediente para generar tags apropiados."""
     ing_lower = ingrediente.lower()
     
+    # Compuestos químicos / extractos / aceites esenciales
+    compuestos = ["mentol", "alcanfor", "eucaliptol", "terpeno", "extracto", 
+                  "aceite esencial", "resina", "mentol cristal"]
+    if any(k in ing_lower for k in compuestos):
+        return "compuesto"
+    
+    # Ácidos grasos, aceites y nutrientes
     aceites_grasas = ["omega", "dha", "epa", "ácido graso", "aceite de pescado",
                      "aceite de krill", "linaza", "chía", "linoleico"]
     if any(k in ing_lower for k in aceites_grasas):
         return "lipido"
     
+    # Proteínas, colágenos, aminoácidos
     proteinas = ["colágeno", "colageno", "proteína", "proteina", "aminoácido", 
                  "aminoacido", "whey", "creatina", "bcaa", "arginina", "glicina"]
     if any(k in ing_lower for k in proteinas):
         return "proteina"
     
+    # Vitaminas y minerales
     vitaminas = ["vitamina", "vit ", "vit.", "ácido fólico", "acido folico", 
                  "biotina", "retinol", "tiamina", "riboflavina"]
     minerales = ["magnesio", "zinc", "hierro", "calcio", "potasio", "selenio", 
@@ -417,6 +427,7 @@ def clasificar_ingrediente(ingrediente):
     if any(k in ing_lower for k in vitaminas + minerales):
         return "micronutriente"
     
+    # Frutas
     frutas = ["naranja", "limón", "limon", "fresa", "manzana", "plátano", "platano",
               "piña", "piña", "mango", "papaya", "arándano", "arandano", "uva",
               "sandía", "sandia", "kiwi", "guayaba", "granada", "cereza", "ciruela",
@@ -424,43 +435,67 @@ def clasificar_ingrediente(ingrediente):
     if any(k in ing_lower for k in frutas):
         return "fruta"
     
+    # Hongos, levaduras, probióticos
     hongos_probioticos = ["hongo", "reishi", "shiitake", "melena de león", 
                          "cordyceps", "levadura", "probiótico", "probiotico", 
                          "lactobacillus", "bifidobacterium"]
     if any(k in ing_lower for k in hongos_probioticos):
         return "probiotico"
     
+    # Raíces, tubérculos, especias (NO son "hierbas" en sentido estricto)
     raices = ["cúrcuma", "curcuma", "jengibre", "ginseng", "maca", "ashwagandha",
               "valeriana", "regaliz", "alcachofa", "betabel", "remolacha", "camote"]
     if any(k in ing_lower for k in raices):
         return "raiz"
     
+    # Por defecto: planta/herbolaria
     return "planta"
 
 # ================================================================
-# 🎯 GENERADOR DE TAGS SEO ELITE (CORREGIDO - sin tags inválidos)
+# 🎯 GENERADOR DE TAGS SEO ELITE (CORREGIDO - validación estricta)
 # ================================================================
 def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
+    """
+    Genera tags optimizados para YouTube con validación estricta:
+    - Cada tag máximo 29 caracteres (margen de seguridad)
+    - Solo letras, números y espacios
+    - Sin caracteres especiales, sin "...", sin símbolos
+    """
     tags = []
     ing_lower = ingrediente.lower().strip()
     tipo = clasificar_ingrediente(ingrediente)
     
     print(f"   🎯 Ingrediente clasificado como: {tipo}")
     
+    # Tag principal (ingrediente)
     tags.append(ing_lower)
     
+    # Tags según tipo de ingrediente
     if tipo == "planta":
         tags.extend([
             f"planta {ing_lower}",
             f"hierba {ing_lower}",
-            f"té de {ing_lower}",
-            f"infusión de {ing_lower}",
-            f"remedio de {ing_lower}",
+            f"remedio {ing_lower}",
             f"{ing_lower} medicinal",
+        ])
+        # Solo agregar "té" e "infusión" si el ingrediente es compatible
+        if ing_lower not in ["mentol", "alcanfor", "resina"]:
+            tags.extend([
+                f"te de {ing_lower}",  # sin acento para evitar problemas
+                f"infusion de {ing_lower}",  # sin acento
+            ])
+    elif tipo == "compuesto":
+        # Compuestos químicos/extractos - tags más conservadores
+        tags.extend([
+            f"{ing_lower} beneficios",
+            f"{ing_lower} natural",
+            f"{ing_lower} para salud",
+            f"extracto {ing_lower}",
+            f"{ing_lower} propiedades",
         ])
     elif tipo == "lipido":
         tags.extend([
-            f"ácido graso {ing_lower}",
+            f"acido graso {ing_lower}",  # sin acento
             f"suplemento {ing_lower}",
             f"{ing_lower} beneficios",
             f"omega 3 natural",
@@ -496,33 +531,39 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         ])
     elif tipo == "raiz":
         tags.extend([
-            f"raíz de {ing_lower}",
+            f"raiz de {ing_lower}",  # sin acento
             f"{ing_lower} medicinal",
-            f"remedio de {ing_lower}",
+            f"remedio {ing_lower}",
             f"{ing_lower} beneficios",
         ])
     
+    # Tags universales de propiedades/beneficios
     tags.extend([
-        f"beneficios de {ing_lower}",
-        f"propiedades de {ing_lower}",
-        f"para qué sirve {ing_lower}",
+        f"beneficios {ing_lower}",
+        f"propiedades {ing_lower}",
+        f"para que sirve {ing_lower}",  # sin acento para evitar problemas
     ])
     
+    # Tags long-tail
     tags.extend([
-        f"{ing_lower} en remedios naturales",
+        f"{ing_lower} remedios naturales",
         f"{ing_lower} usos y beneficios",
     ])
     
+    # Tags de síntomas/problemas (cada uno individual)
     if problema:
         problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
         for prob in problemas_individuales[:5]:
             prob_limpio = prob.lower().strip()
-            if 3 < len(prob_limpio) <= 28:
-                tags.append(prob_limpio)
-                tag_rem = f"{ing_lower} para {prob_limpio}"
-                if len(tag_rem) <= 30:
+            # Normalizar sin acentos para mayor compatibilidad
+            prob_sin_acentos = re.sub(r'[áéíóú]', lambda m: {'á':'a','é':'e','í':'i','ó':'o','ú':'u'}[m.group()], prob_limpio)
+            if 3 < len(prob_sin_acentos) <= 28:
+                tags.append(prob_sin_acentos)
+                tag_rem = f"{ing_lower} para {prob_sin_acentos}"
+                if len(tag_rem) <= 29:
                     tags.append(tag_rem)
     
+    # Tags generales del nicho
     tags_generales = [
         "remedios naturales",
         "remedios caseros",
@@ -530,7 +571,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         "medicina natural",
         "bienestar natural",
         "salud y bienestar",
-        "nutrición natural",
+        "nutricion natural",  # sin acento
         "vida saludable",
         "suplementos naturales",
     ]
@@ -540,42 +581,56 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
             "herbolaria mexicana",
             "plantas medicinales",
             "hierbas medicinales",
-            "tradición mexicana",
+            "tradicion mexicana",  # sin acento
         ])
     
     tags.extend(tags_generales)
     
+    # Tags del título (extraídos automáticamente)
     if titulo:
         palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if 4 < len(p) <= 20]
         for p in palabras_titulo[:4]:
             if p not in [t.lower() for t in tags]:
                 tags.append(p)
     
+    # Tags del tema viral
     if tema_viral:
         for kw in tema_viral.get("keywords_cortas", [])[:2]:
             kw_l = kw.lower()
-            if len(kw_l) <= 30 and kw_l not in [t.lower() for t in tags]:
+            if len(kw_l) <= 29 and kw_l not in [t.lower() for t in tags]:
                 tags.append(kw_l)
     
+    # ============================================================
+    # VALIDACIÓN ULTRA-ESTRICTA (CRÍTICO PARA YOUTUBE)
+    # ============================================================
     tags_unicos = []
     vistos = set()
     for tag in tags:
+        # Normalizar
         tag_limpio = re.sub(r'\s+', ' ', tag.strip().lower())
         
-        if len(tag_limpio) > 30:
-            continue
+        # REGLAS DE YOUTUBE (validación estricta):
+        # 1. Longitud máxima por tag: 29 caracteres (margen de seguridad)
+        if len(tag_limpio) > 29:
+            continue  # DESCARTAR, NO truncar con "..."
+        # 2. Longitud mínima: 2 caracteres
         if len(tag_limpio) < 2:
             continue
+        # 3. SOLO letras (incluyendo acentos y ñ), números y espacios
+        # NO se permiten: puntos, comas, símbolos, "...", emojis
         if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
             continue
+        # 4. No palabras prohibidas
         if any(p in tag_limpio for p in PALABRAS_PROHIBIDAS_TITULO[:50]):
             continue
+        # 5. No duplicados
         if tag_limpio in vistos:
             continue
             
         tags_unicos.append(tag_limpio)
         vistos.add(tag_limpio)
     
+    # Respetar límite de 500 caracteres totales
     resultado = []
     total_chars = 0
     for tag in tags_unicos:
@@ -584,6 +639,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         resultado.append(tag)
         total_chars += len(tag) + 1
     
+    # Mínimo 3 tags garantizados
     if len(resultado) < 3:
         resultado = ["remedios naturales", "salud natural", ingrediente.lower()][:3]
     
@@ -591,6 +647,49 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
 
 def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
     return generar_tags_seo_elite(ingrediente, problema, "", tema_viral)
+
+# ================================================================
+# 🆘 TAGS DE EMERGENCIA (ultra-seguros si YouTube rechaza los originales)
+# ================================================================
+def generar_tags_emergencia(ingrediente):
+    """
+    Tags de respaldo ULTRA-SEGUROS para usar si YouTube rechaza los originales.
+    Solo usa tags probados y sin riesgo de invalidTags.
+    """
+    ing_lower = ingrediente.lower().strip()
+    tags_seguros = [
+        ing_lower,
+        f"{ing_lower} beneficios",
+        f"{ing_lower} natural",
+        "remedios naturales",
+        "remedios caseros",
+        "salud natural",
+        "medicina natural",
+        "bienestar natural",
+        "herbolaria mexicana",
+        "plantas medicinales",
+        "hierbas medicinales",
+        "salud y bienestar",
+        "vida saludable",
+        f"para que sirve {ing_lower}",
+        f"propiedades {ing_lower}",
+    ]
+    
+    # Filtrar solo los que cumplan reglas estrictas
+    resultado = []
+    total_chars = 0
+    for tag in tags_seguros:
+        tag_limpio = tag.strip().lower()
+        if len(tag_limpio) > 29 or len(tag_limpio) < 2:
+            continue
+        if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
+            continue
+        if total_chars + len(tag_limpio) + 1 > 495:
+            break
+        resultado.append(tag_limpio)
+        total_chars += len(tag_limpio) + 1
+    
+    return ", ".join(resultado[:15])
 
 # ================================================================
 # 🤖 IA GENERA GUION
@@ -1313,7 +1412,7 @@ def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_
         return None
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE (CON REINTENTOS + VALIDACIÓN DE TAGS)
+# 📤 SUBIR A YOUTUBE (CON REINTENTOS + VALIDACIÓN DE TAGS + EMERGENCIA)
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -1347,6 +1446,7 @@ def fijar_comentario_contacto(youtube, video_id):
         print(f"⚠️ Error comentario: {e}")
 
 def validar_tags_youtube(tags_str):
+    """Validación ultra-estricta de tags para YouTube."""
     if not tags_str:
         return "remedios naturales, salud natural, bienestar"
     
@@ -1356,13 +1456,19 @@ def validar_tags_youtube(tags_str):
     for tag in tags_lista:
         tag_limpio = re.sub(r'\s+', ' ', tag).strip()
         
-        if len(tag_limpio) > 30:
-            tag_limpio = tag_limpio[:27] + "..."
+        # NO truncar con "...", simplemente descartar si excede 29 caracteres
+        if len(tag_limpio) > 29:
+            continue
         
         if len(tag_limpio) < 2:
             continue
             
+        # SOLO letras, números y espacios (NO puntos, NO símbolos, NO "...")
         if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
+            continue
+        
+        # Rechazar tags con puntos suspensivos
+        if "..." in tag_limpio:
             continue
             
         if tag_limpio not in tags_validos:
@@ -1387,6 +1493,7 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
     
+    # Validar tags inicialmente
     tags_validados = validar_tags_youtube(tags_str)
     print(f"🏷️ Tags validados para YouTube ({len(tags_validados.split(','))} tags)")
 
@@ -1426,24 +1533,45 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     }
     
     video_id = None
-    for intento in range(1, 4):
+    tags_emergencia_usados = False
+    
+    for intento in range(1, 5):  # Hasta 4 intentos (3 normales + 1 con tags de emergencia)
         try:
-            print(f"📤 Subiendo video a YouTube (intento {intento}/3)...")
+            print(f"📤 Subiendo video a YouTube (intento {intento}/4)...")
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
             response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
             video_id = response["id"]
             print(f"✅ Video largo subido con SEO viral: https://youtu.be/{video_id}")
+            if tags_emergencia_usados:
+                print(f"   🆘 Se usaron tags de emergencia (los originales fueron rechazados)")
             break
         except Exception as e:
             error_str = str(e)
-            if "502" in error_str or "503" in error_str or "504" in error_str or "Bad Gateway" in error_str:
-                print(f"⚠️ Error temporal de YouTube (intento {intento}/3): {error_str[:100]}...")
-                if intento < 3:
+            
+            # 🔥 MANEJO ESPECIAL PARA invalidTags
+            if "invalidTags" in error_str or "invalid video keywords" in error_str.lower():
+                print(f"⚠️ YouTube rechazó los tags (intento {intento}/4): {error_str[:150]}...")
+                
+                if not tags_emergencia_usados:
+                    # Usar tags de emergencia ULTRA-SEGUROS
+                    print(f"🆘 Activando TAGS DE EMERGENCIA ultra-seguros...")
+                    tags_emergencia = generar_tags_emergencia(ingrediente)
+                    body["snippet"]["tags"] = [t.strip() for t in tags_emergencia.split(",") if t.strip()][:15]
+                    tags_emergencia_usados = True
+                    print(f"   🏷️ Tags de emergencia ({len(body['snippet']['tags'])} tags): {tags_emergencia[:100]}...")
+                    time.sleep(5)
+                    continue
+                else:
+                    print(f"❌ Los tags de emergencia también fallaron. Error: {e}")
+                    raise
+            elif "502" in error_str or "503" in error_str or "504" in error_str or "Bad Gateway" in error_str:
+                print(f"⚠️ Error temporal de YouTube (intento {intento}/4): {error_str[:100]}...")
+                if intento < 4:
                     espera = 30 * intento
                     print(f"⏳ Esperando {espera}s antes de reintentar...")
                     time.sleep(espera)
                 else:
-                    print(f"❌ Falló tras 3 intentos. Error: {e}")
+                    print(f"❌ Falló tras 4 intentos. Error: {e}")
                     raise
             else:
                 print(f"❌ Error subiendo a YouTube: {e}")
