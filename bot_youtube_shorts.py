@@ -45,8 +45,6 @@ WHATSAPP_NUMBER = "+52 3123395334"
 TELEFONO_NUMBER = "3123395334"
 TELEGRAM_BOT = "@alex_xanax_bot"
 TELEGRAM_PASSWORD = "A"  # Contraseña del bot de Telegram
-CANAL_LINK = "https://www.youtube.com/@sombrasdemedianocheoficial"
-FACEBOOK_LINK = "https://www.facebook.com/profile.php?id=61593237382982"
 
 ESTADO_FILE = "estado_herbolaria.json"
 INGREDIENTES_USADOS_FILE = "ingredientes_usados.json"
@@ -60,9 +58,9 @@ MAX_VIDEOS_DIA = 1
 ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
-# ⏰ VENTANA DE PUBLICACIÓN (hora CDMX)
-HORA_MIN_PUBLICAR = 9
-HORA_MAX_PUBLICAR = 17
+# ⏰ VENTANA DE PUBLICACIÓN (hora CDMX) - igual que Largos
+HORA_EXCLUIR_INICIO = 0   # Medianoche (0:00)
+HORA_EXCLUIR_FIN = 4      # Hasta las 4:00 AM (excluido)
 
 FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
@@ -70,7 +68,6 @@ FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 # 🛡️ PALABRAS PROHIBIDAS (Política de salud de YouTube)
 # ================================================================
 PALABRAS_PROHIBIDAS_TITULO = [
-    # 1. Claims de curación
     "cura", "curar", "cura milagrosa", "curación",
     "milagrosa", "milagroso", "milagro", "milagros",
     "sana", "sanar", "sanación", "sanarlo", "sanarte",
@@ -81,7 +78,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "adiós al", "adiós definitivo", "adiós para siempre",
     "nunca más", "para siempre",
     "de raíz", "desde la raíz", "elimina de raíz",
-    # 2. Claims médicos no verificados
     "científicamente comprobado", "cientificamente comprobado",
     "comprobado científicamente", "comprobado cientificamente",
     "clínicamente probado", "clinicamente probado",
@@ -95,7 +91,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "garantizado", "garantía de resultados",
     "revolucionario", "breakthrough", "descubrimiento médico",
     "innovación médica", "patentado médicamente",
-    # 3. Reemplazo de tratamiento médico
     "reemplaza", "reemplaza medicamentos", "reemplaza tu tratamiento",
     "sustituye", "sustituye medicamentos", "sustituye tu tratamiento",
     "no necesitas médico", "sin ir al médico", "olvida al doctor",
@@ -103,7 +98,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "olvida la medicina", "tira tus pastillas", "deja tu tratamiento",
     "sin fármacos", "sin medicamentos", "sin receta médica",
     "alternativa a medicamentos", "en vez de medicamentos",
-    # 4. Promesas de tiempo específico
     "en 24 horas", "en un día", "hoy mismo",
     "en 3 días", "en tres días",
     "en 7 días", "en una semana", "en siete días",
@@ -112,7 +106,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "al instante", "inmediatamente", "instantáneo", "instantanea",
     "resultados inmediatos", "efecto inmediato",
     "rápido y fácil", "exprés", "express",
-    # 5. Sensacionalismo / miedo
     "peligroso", "peligrosa", "mortal", "mortales",
     "asesino silencioso", "asesina silenciosa",
     "te está matando", "te mata", "te matará",
@@ -124,7 +117,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "increíble", "asombroso", "alucinante",
     "conspiración", "lo que te ocultan", "la verdad oculta",
     "ellos no quieren que sepas", "te mienten",
-    # 6. Transformación extrema / peso
     "transforma tu cuerpo", "transforma tu vida",
     "cambia tu vida", "nuevo tú", "nueva tú",
     "antes y después", "resultados increíbles",
@@ -136,7 +128,6 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "barriga plana", "abdomen plano en días",
     "rejuvenece 20 años", "rejuvenece 10 años",
     "eterna juventud", "juventud eterna", "inmortal",
-    # 7. Clickbait genérico
     "no vas a creer", "no lo vas a creer",
     "te sorprenderá", "te dejará impactado",
     "quedarás impactado", "quedarás asombrado",
@@ -145,13 +136,11 @@ PALABRAS_PROHIBIDAS_TITULO = [
     "lo que nadie dice", "lo que nadie sabe",
     "el mejor del mundo", "el peor del mundo",
     "definitivo", "perfecto",
-    # 8. Enfermedades graves
     "cáncer", "cancer", "tumor", "tumores",
     "VIH", "SIDA", "sida",
     "alzheimer", "parkinson", "esclerosis",
     "leucemia", "infarto", "derrame cerebral",
     "ictus", "metástasis",
-    # 9. Otros problemáticos
     "solución", "elimina",
     "limpiar tu cuerpo", "limpieza total del cuerpo",
 ]
@@ -231,64 +220,18 @@ TEMAS_VIRALES_SALUD = [
 ]
 
 # ================================================================
-# 🎯 FÓRMULAS DE TÍTULOS ÉLITE (SEGURAS + VIRALES)
-# ================================================================
-FORMULAS_TITULOS_ELITE = {
-    "secreto": [
-        "El secreto del {ingrediente} que pocos conocen",
-        "El poder oculto del {ingrediente}",
-        "Lo que nadie te cuenta sobre el {ingrediente}",
-    ],
-    "pregunta": [
-        "¿Sabías esto del {ingrediente}?",
-        "¿Puede el {ingrediente} apoyar en {problema}?",
-        "¿Conocías el {ingrediente}?",
-        "¿Por qué deberías usar {ingrediente}?",
-    ],
-    "beneficio": [
-        "{numero} beneficios del {ingrediente} que ignorabas",
-        "Así apoya el {ingrediente} en tu {beneficio}",
-        "{ingrediente}: El aliado para {beneficio}",
-    ],
-    "como_usar": [
-        "Cómo usar {ingrediente} para {beneficio}",
-        "{numero} formas de usar {ingrediente}",
-        "La mejor forma de usar {ingrediente}",
-    ],
-    "verdad": [
-        "La verdad sobre el {ingrediente}",
-        "Lo que nadie sabe del {ingrediente}",
-        "Mitos y verdades del {ingrediente}",
-    ],
-    "por_que": [
-        "Por qué funciona el {ingrediente}",
-        "Por qué deberías probar {ingrediente}",
-        "Por qué el {ingrediente} es efectivo",
-    ],
-    "tradicion": [
-        "{ingrediente}: por qué la tradición herbal lo usa",
-        "El papel del {ingrediente} en la herbolaria",
-        "{ingrediente}: lo que tu abuela ya sabía",
-    ],
-    "busqueda": [
-        "Para qué sirve el {ingrediente} en remedios naturales",
-        "Beneficios del {ingrediente} en la herbolaria mexicana",
-        "Remedios caseros con {ingrediente}: usos tradicionales",
-        "Propiedades del {ingrediente} que pocos conocen",
-    ],
-}
-
-# ================================================================
-# 🎤 VOCES NEURALES PREMIUM
+# 🎤 VOCES NEURALES PREMIUM (8 voces con fallback)
 # ================================================================
 VOCES_DISPONIBLES = [
-    {"voz": "es-MX-DaliaNeural", "velocidad": "+10%", "tono": "+1Hz", "estilo": "claro"},
-    {"voz": "es-MX-JorgeNeural", "velocidad": "+8%", "tono": "0Hz", "estilo": "profesional"},
-    {"voz": "es-ES-ElviraNeural", "velocidad": "+12%", "tono": "+2Hz", "estilo": "entusiasta"},
-    {"voz": "es-CO-SalomeNeural", "velocidad": "+10%", "tono": "+1Hz", "estilo": "natural"},
-    {"voz": "es-AR-ElenaNeural", "velocidad": "+9%", "tono": "+1Hz", "estilo": "cálido"},
+    {"voz": "es-MX-DaliaNeural", "velocidad": "+10%", "estilo": "claro México"},
+    {"voz": "es-MX-JorgeNeural", "velocidad": "+8%", "estilo": "profesional México"},
+    {"voz": "es-ES-ElviraNeural", "velocidad": "+12%", "estilo": "entusiasta España"},
+    {"voz": "es-ES-AlvaroNeural", "velocidad": "+10%", "estilo": "profesional España"},
+    {"voz": "es-CO-SalomeNeural", "velocidad": "+10%", "estilo": "natural Colombia"},
+    {"voz": "es-AR-ElenaNeural", "velocidad": "+9%", "estilo": "cálido Argentina"},
+    {"voz": "es-US-PalomaNeural", "velocidad": "+10%", "estilo": "neutral USA"},
+    {"voz": "es-MX-BeatrizNeural", "velocidad": "+11%", "estilo": "amigable México"},
 ]
-CONFIG_VOZ_ACTUAL = random.choice(VOCES_DISPONIBLES)
 
 # ================================================================
 # 🧠 ESTADO Y SELECCIÓN ANTI-REPETICIÓN
@@ -360,10 +303,13 @@ def deberia_publicar_ahora(estado):
         print("✅ Límite diario alcanzado.")
         return False
 
+    # ⏰ NUEVA LÓGICA: Bloquear SOLO la madrugada (0:00 a 4:00)
     forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
-    if not forzar and not (HORA_MIN_PUBLICAR <= ahora.hour < HORA_MAX_PUBLICAR):
-        print(f"⏰ Fuera de ventana horaria ({ahora.hour}h CDMX). Solo publico entre {HORA_MIN_PUBLICAR}:00 y {HORA_MAX_PUBLICAR}:00.")
-        return False
+    if not forzar:
+        hora_actual = ahora.hour
+        if HORA_EXCLUIR_INICIO <= hora_actual < HORA_EXCLUIR_FIN:
+            print(f"🌙 Hora de madrugada ({hora_actual}h CDMX). No publico entre {HORA_EXCLUIR_INICIO}:00 y {HORA_EXCLUIR_FIN}:00 para evitar bajo alcance.")
+            return False
 
     ultima = estado.get("ultima_publicacion")
     if ultima:
@@ -442,27 +388,203 @@ def optimizar_titulo_short(titulo_ia, ingrediente, problema=None):
     titulo_final = f"{titulo_limpio[:70]} {' '.join(hashtags)}"
     return titulo_final[:100]
 
-def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
-    """Genera 15 tags optimizados con keywords de alto volumen."""
+# ================================================================
+# 🎯 CLASIFICADOR DE INGREDIENTES (evita tags inválidos)
+# ================================================================
+def clasificar_ingrediente(ingrediente):
+    ing_lower = ingrediente.lower()
+    
+    aceites_grasas = ["omega", "dha", "epa", "ácido graso", "aceite de pescado",
+                     "aceite de krill", "linaza", "chía", "linoleico"]
+    if any(k in ing_lower for k in aceites_grasas):
+        return "lipido"
+    
+    proteinas = ["colágeno", "colageno", "proteína", "proteina", "aminoácido", 
+                 "aminoacido", "whey", "creatina", "bcaa", "arginina", "glicina"]
+    if any(k in ing_lower for k in proteinas):
+        return "proteina"
+    
+    vitaminas = ["vitamina", "vit ", "vit.", "ácido fólico", "acido folico", 
+                 "biotina", "retinol", "tiamina", "riboflavina"]
+    minerales = ["magnesio", "zinc", "hierro", "calcio", "potasio", "selenio", 
+                 "cromo", "yodo", "cobre", "manganeso"]
+    if any(k in ing_lower for k in vitaminas + minerales):
+        return "micronutriente"
+    
+    frutas = ["naranja", "limón", "limon", "fresa", "manzana", "plátano", "platano",
+              "piña", "piña", "mango", "papaya", "arándano", "arandano", "uva",
+              "sandía", "sandia", "kiwi", "guayaba", "granada", "cereza", "ciruela",
+              "durazno", "chabacano", "tamarindo", "coco", "jitomate"]
+    if any(k in ing_lower for k in frutas):
+        return "fruta"
+    
+    hongos_probioticos = ["hongo", "reishi", "shiitake", "melena de león", 
+                         "cordyceps", "levadura", "probiótico", "probiotico", 
+                         "lactobacillus", "bifidobacterium"]
+    if any(k in ing_lower for k in hongos_probioticos):
+        return "probiotico"
+    
+    raices = ["cúrcuma", "curcuma", "jengibre", "ginseng", "maca", "ashwagandha",
+              "valeriana", "regaliz", "alcachofa", "betabel", "remolacha", "camote"]
+    if any(k in ing_lower for k in raices):
+        return "raiz"
+    
+    return "planta"
+
+# ================================================================
+# 🎯 GENERADOR DE TAGS SEO ELITE (igual que Largos - evita invalidTags)
+# ================================================================
+def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     tags = []
-    tags.append(ingrediente.lower())
-    tags.append(f"{ingrediente} beneficios")
-    tags.append(f"{ingrediente} propiedades")
-    tags.extend(obtener_keywords_aleatorias_virales(5))
-    if tema_viral:
-        tags.extend(tema_viral.get("keywords_cortas", [])[:3])
-        tags.extend(tema_viral.get("keywords_largas", [])[:2])
+    ing_lower = ingrediente.lower().strip()
+    tipo = clasificar_ingrediente(ingrediente)
+    
+    print(f"   🎯 Ingrediente clasificado como: {tipo}")
+    
+    tags.append(ing_lower)
+    
+    if tipo == "planta":
+        tags.extend([
+            f"planta {ing_lower}",
+            f"hierba {ing_lower}",
+            f"té de {ing_lower}",
+            f"infusión de {ing_lower}",
+            f"remedio de {ing_lower}",
+            f"{ing_lower} medicinal",
+        ])
+    elif tipo == "lipido":
+        tags.extend([
+            f"ácido graso {ing_lower}",
+            f"suplemento {ing_lower}",
+            f"{ing_lower} beneficios",
+            f"{ing_lower} natural",
+            f"{ing_lower} para salud",
+        ])
+    elif tipo == "proteina":
+        tags.extend([
+            f"suplemento {ing_lower}",
+            f"{ing_lower} beneficios",
+            f"{ing_lower} para salud",
+            f"{ing_lower} natural",
+        ])
+    elif tipo == "micronutriente":
+        tags.extend([
+            f"suplemento {ing_lower}",
+            f"{ing_lower} beneficios",
+            f"{ing_lower} para salud",
+            f"{ing_lower} natural",
+        ])
+    elif tipo == "fruta":
+        tags.extend([
+            f"fruta {ing_lower}",
+            f"{ing_lower} beneficios",
+            f"jugo de {ing_lower}",
+            f"{ing_lower} natural",
+        ])
+    elif tipo == "probiotico":
+        tags.extend([
+            f"suplemento {ing_lower}",
+            f"{ing_lower} beneficios",
+            f"{ing_lower} natural",
+            f"{ing_lower} para salud",
+        ])
+    elif tipo == "raiz":
+        tags.extend([
+            f"raíz de {ing_lower}",
+            f"{ing_lower} medicinal",
+            f"remedio de {ing_lower}",
+            f"{ing_lower} beneficios",
+        ])
+    
+    tags.extend([
+        f"beneficios de {ing_lower}",
+        f"propiedades de {ing_lower}",
+        f"para qué sirve {ing_lower}",
+    ])
+    
+    tags.extend([
+        f"{ing_lower} en remedios naturales",
+        f"{ing_lower} usos y beneficios",
+    ])
+    
     if problema:
-        tags.append(problema.lower())
-        tags.append(f"remedios naturales para {problema.lower()}")
-    for ht in HASHTAGS_VIRALES[:5]:
-        tags.append(ht.replace("#", ""))
+        problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
+        for prob in problemas_individuales[:5]:
+            prob_limpio = prob.lower().strip()
+            if 3 < len(prob_limpio) <= 28:
+                tags.append(prob_limpio)
+                tag_rem = f"{ing_lower} para {prob_limpio}"
+                if len(tag_rem) <= 30:
+                    tags.append(tag_rem)
+    
+    tags_generales = [
+        "remedios naturales",
+        "remedios caseros",
+        "salud natural",
+        "medicina natural",
+        "bienestar natural",
+        "salud y bienestar",
+        "nutrición natural",
+        "vida saludable",
+        "suplementos naturales",
+    ]
+    
+    if tipo == "planta":
+        tags_generales.extend([
+            "herbolaria mexicana",
+            "plantas medicinales",
+            "hierbas medicinales",
+            "tradición mexicana",
+        ])
+    
+    tags.extend(tags_generales)
+    
+    if titulo:
+        palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if 4 < len(p) <= 20]
+        for p in palabras_titulo[:4]:
+            if p not in [t.lower() for t in tags]:
+                tags.append(p)
+    
+    if tema_viral:
+        for kw in tema_viral.get("keywords_cortas", [])[:2]:
+            kw_l = kw.lower()
+            if len(kw_l) <= 30 and kw_l not in [t.lower() for t in tags]:
+                tags.append(kw_l)
+    
     tags_unicos = []
+    vistos = set()
     for tag in tags:
-        tag_limpio = tag.strip().lower()
-        if tag_limpio and tag_limpio not in tags_unicos:
-            tags_unicos.append(tag_limpio)
-    return ", ".join(tags_unicos[:15])
+        tag_limpio = re.sub(r'\s+', ' ', tag.strip().lower())
+        
+        if len(tag_limpio) > 30:
+            continue
+        if len(tag_limpio) < 2:
+            continue
+        if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
+            continue
+        if any(p in tag_limpio for p in PALABRAS_PROHIBIDAS_TITULO[:50]):
+            continue
+        if tag_limpio in vistos:
+            continue
+            
+        tags_unicos.append(tag_limpio)
+        vistos.add(tag_limpio)
+    
+    resultado = []
+    total_chars = 0
+    for tag in tags_unicos:
+        if total_chars + len(tag) + 1 > 495:
+            break
+        resultado.append(tag)
+        total_chars += len(tag) + 1
+    
+    if len(resultado) < 3:
+        resultado = ["remedios naturales", "salud natural", ingrediente.lower()][:3]
+    
+    return ", ".join(resultado[:15])
+
+def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
+    return generar_tags_seo_elite(ingrediente, problema, "", tema_viral)
 
 # ================================================================
 # 🤖 IA GENERA CONTENIDO COMPLETO CON SEO VIRAL
@@ -570,8 +692,8 @@ Ejemplos de TÍTULOS VIRALES Y SEGUROS:
             # 🔥 OPTIMIZAR TÍTULO: sanitizar + inyectar keywords + hashtags
             data["titulo"] = optimizar_titulo_short(data.get("titulo", ""), ingrediente, problema)
 
-            # 🔥 GENERAR TAGS VIRALES AUTOMÁTICAMENTE
-            data["tags"] = generar_tags_virales(ingrediente, problema, tema_viral)
+            # 🔥 GENERAR TAGS SEO ELITE AUTOMÁTICAMENTE
+            data["tags"] = generar_tags_seo_elite(ingrediente, problema, data.get("titulo", ""), tema_viral)
 
             if "query_pexels" not in data:
                 data["query_pexels"] = f"{ingrediente} natural healthy"
@@ -579,7 +701,7 @@ Ejemplos de TÍTULOS VIRALES Y SEGUROS:
             print(f"✅ IA generó contenido con SEO viral")
             print(f"   🌱 Ingrediente: {ingrediente}")
             print(f"   🔥 Título optimizado: {data['titulo']}")
-            print(f"   🏷️ Tags virales: {data['tags'][:80]}...")
+            print(f"   🏷️ Tags SEO Elite ({len(data['tags'].split(','))} tags): {data['tags'][:80]}...")
 
             return data
 
@@ -619,17 +741,23 @@ def _descargar_imagen_vertical(url, salida):
     return salida
 
 # ================================================================
-# 🎨 IMÁGENES DE ESCENAS: FLUX CLOUDFLARE (3 intentos) → PEXELS
+# 🎨 IMÁGENES DE ESCENAS: FLUX CLOUDFLARE (CORREGIDO) → PEXELS
 # ================================================================
 SEGMENTO_FLUX_SUFFIX_SHORT = (", photorealistic photography, natural lighting, vivid saturated colors, "
                               "cinematic composition, botanical and herbal theme, shallow depth of field, "
                               "no text, no watermark, no people, vertical portrait 9:16")
 
 def _flux_cloudflare_imagen_short(query, salida):
-    """Genera UNA imagen vertical con Flux vía Cloudflare Workers AI. Lanza excepción si falla."""
+    """Genera UNA imagen vertical con Flux vía Cloudflare Workers AI.
+    CORREGIDO: flux-1-schnell NO soporta width/height en Cloudflare Workers AI.
+    """
     url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
     headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-    payload = {"prompt": query + SEGMENTO_FLUX_SUFFIX_SHORT, "width": 1080, "height": 1920, "steps": 4}
+    # ✅ CORRECCIÓN: Solo prompt y steps (sin width/height)
+    payload = {
+        "prompt": query + SEGMENTO_FLUX_SUFFIX_SHORT,
+        "steps": 4
+    }
     r = requests.post(url, headers=headers, json=payload, timeout=90)
     r.raise_for_status()
     data = r.json()
@@ -669,16 +797,67 @@ def buscar_imagen_segmento_short(query_en, salida):
     return _descargar_imagen_vertical("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1080&h=1920&fit=crop", salida)
 
 # ================================================================
-# 🎤 AUDIO + OVERLAYS
+# 🎤 AUDIO CON REINTENTOS + FALLBACK ENTRE VOCES
 # ================================================================
-async def generar_audio(texto, path):
+async def _generar_audio_interno(texto, path, voz_config):
+    """Genera un audio con una voz específica."""
     texto_limpio = re.sub(r'[^\w\sáéíóúüñÁÉÍÓÚÜÑ0-9\s.,;:!?¿¡\'\"]', '', texto)
-    try:
-        await edge_tts.Communicate(texto_limpio, CONFIG_VOZ_ACTUAL["voz"], rate=CONFIG_VOZ_ACTUAL["velocidad"]).save(path)
-        return path
-    except Exception as e:
-        print(f"⚠️ Error audio: {e}")
-        return None
+    await edge_tts.Communicate(texto_limpio, voz_config["voz"], rate=voz_config["velocidad"]).save(path)
+
+def generar_audio_con_reintentos(texto, path, voz_principal, max_intentos=3):
+    """
+    Genera audio con reintentos automáticos.
+    Si falla una voz, prueba con las siguientes disponibles.
+    """
+    # Intentar con la voz principal
+    for intento in range(max_intentos):
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_generar_audio_interno(texto, path, voz_principal))
+            loop.close()
+            
+            if os.path.exists(path) and os.path.getsize(path) > 100:
+                if intento > 0:
+                    print(f"   ✅ Audio generado en intento {intento+1}/{max_intentos}")
+                return path
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "403" in error_msg or "401" in error_msg or "Forbidden" in error_msg:
+                print(f"   ⚠️ Voz {voz_principal['voz']} bloqueada (intento {intento+1}/{max_intentos}): {error_msg[:80]}")
+            else:
+                print(f"   ⚠️ Error generando audio (intento {intento+1}/{max_intentos}): {error_msg[:80]}")
+            
+            if intento < max_intentos - 1:
+                espera = 2 ** intento  # 1s, 2s, 4s
+                print(f"   ⏳ Esperando {espera}s antes de reintentar...")
+                time.sleep(espera)
+    
+    # Si falló con la voz principal, intentar con otras voces
+    print(f"   🔄 Voz {voz_principal['voz']} falló tras {max_intentos} intentos. Probando voces alternativas...")
+    for voz_alt in VOCES_DISPONIBLES:
+        if voz_alt["voz"] == voz_principal["voz"]:
+            continue  # Ya probamos esta
+        
+        try:
+            print(f"   🎤 Probando voz alternativa: {voz_alt['voz']}...")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_generar_audio_interno(texto, path, voz_alt))
+            loop.close()
+            
+            if os.path.exists(path) and os.path.getsize(path) > 100:
+                print(f"   ✅ Audio generado con voz alternativa: {voz_alt['voz']}")
+                return path
+                
+        except Exception as e:
+            print(f"   ⚠️ Voz alternativa {voz_alt['voz']} también falló: {str(e)[:60]}")
+            continue
+    
+    # Si todas las voces fallaron
+    print(f"   ❌ Todas las voces fallaron para este segmento")
+    return None
 
 def crear_imagen_texto_cta(texto, ancho=1080, alto=220):
     img = Image.new("RGBA", (ancho, alto), (0, 0, 0, 0))
@@ -724,13 +903,17 @@ def crear_overlay_aviso(salida="aviso_overlay.png"):
 # ================================================================
 def crear_video_con_dos_imagenes_y_texto(guion, img_ingrediente_path, url_producto, ingrediente, bg_producto_path):
     print("🎬 Renderizando Short con 2 escenas + overlays...")
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    audio1 = loop.run_until_complete(generar_audio(guion["guion_segmento_1"], "seg1.mp3"))
-    audio2 = loop.run_until_complete(generar_audio(guion["guion_segmento_2"], "seg2.mp3"))
-    loop.close()
+    
+    # 🔥 AUDIOS CON REINTENTOS + FALLBACK ENTRE VOCES
+    voz_principal = random.choice(VOCES_DISPONIBLES)
+    print(f"🎤 Voz principal: {voz_principal['voz']} ({voz_principal['estilo']})")
+    
+    audio1 = generar_audio_con_reintentos(guion["guion_segmento_1"], "seg1.mp3", voz_principal, max_intentos=3)
+    audio2 = generar_audio_con_reintentos(guion["guion_segmento_2"], "seg2.mp3", voz_principal, max_intentos=3)
 
-    if not audio1 or not audio2: return None
+    if not audio1 or not audio2: 
+        print("❌ Falló la generación de audio tras todos los intentos")
+        return None
 
     clip1, clip2 = AudioFileClip(audio1), AudioFileClip(audio2)
     audio_total = concatenate_audioclips([clip1, clip2])
@@ -858,7 +1041,7 @@ def crear_video_con_dos_imagenes_y_texto(guion, img_ingrediente_path, url_produc
     return "short_final.mp4"
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE CON SEO VIRAL + CONTACTOS ARRIBA
+# 📤 SUBIR A YOUTUBE CON SEO VIRAL + REINTENTOS + CONTACTOS ARRIBA
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
@@ -892,6 +1075,42 @@ def fijar_comentario_contacto(youtube, video_id):
     except Exception as e:
         print(f"⚠️ Error comentario: {e}")
 
+def validar_tags_youtube(tags_str):
+    """Valida y limpia los tags ANTES de enviarlos a YouTube."""
+    if not tags_str:
+        return "remedios naturales, salud natural, bienestar"
+    
+    tags_lista = [t.strip().lower() for t in tags_str.split(",") if t.strip()]
+    tags_validos = []
+    
+    for tag in tags_lista:
+        tag_limpio = re.sub(r'\s+', ' ', tag).strip()
+        
+        if len(tag_limpio) > 30:
+            tag_limpio = tag_limpio[:27] + "..."
+        
+        if len(tag_limpio) < 2:
+            continue
+            
+        if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
+            continue
+            
+        if tag_limpio not in tags_validos:
+            tags_validos.append(tag_limpio)
+    
+    if len(tags_validos) < 3:
+        tags_validos = ["remedios naturales", "salud natural", "bienestar"]
+    
+    resultado = []
+    total_chars = 0
+    for tag in tags_validos[:15]:
+        if total_chars + len(tag) + 1 > 495:
+            break
+        resultado.append(tag)
+        total_chars += len(tag) + 1
+    
+    return ", ".join(resultado)
+
 def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, contexto, ingrediente, problema=None):
     try:
         creds = obtener_credenciales_youtube()
@@ -900,10 +1119,13 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
         print(f"❌ Error autenticando YouTube: {e}")
         return None
 
-    hashtags_str = " ".join(HASHTAGS_VIRALES[:6])
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
+    
+    # 🔥 VALIDAR TAGS ANTES DE ENVIAR
+    tags_validados = validar_tags_youtube(tags_str)
+    print(f"🏷️ Tags validados para YouTube ({len(tags_validados.split(','))} tags)")
 
-    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT
+    # 🔥 DESCRIPCIÓN CON CONTACTOS ARRIBA + CONTRASEÑA DEL BOT (SIN ENLACES EXTERNOS)
     descripcion = f"""{gancho}
 
 {contexto}
@@ -919,32 +1141,56 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 
 ⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
 
-🔗 Más contenido en nuestro canal: {CANAL_LINK}
-📘 Síguenos en Facebook: {FACEBOOK_LINK}
+🔍 En este Short aprenderás:
+• Para qué sirve el {ingrediente} en la herbolaria mexicana
+• Beneficios y propiedades tradicionales del {ingrediente}
+• El producto recomendado con {ingrediente} y dónde conseguirlo
 
-🔍 Búsquedas relacionadas: remedios naturales, remedios caseros, salud natural, medicina natural, herbolaria mexicana, hierbas medicinales, plantas medicinales, tips de salud, bienestar natural, tradición mexicana, para qué sirve, beneficios de, propiedades de, cómo usar
-
-{hashtags_str} #{ingrediente.replace(' ', '')}"""
+#remediosnaturales #remedioscaseros #saludnatural #medicinanatural #herbolaria #hierbasmedicinales #{ingrediente.replace(' ', '')} #shorts"""
 
     if ACTIVAR_DISCLOSURE_IA: descripcion += DISCLOSURE_TEXT
 
     body = {
         "snippet": {"title": titulo[:100], "description": descripcion[:5000],
-                    "tags": [t.strip() for t in tags_str.split(",") if t.strip()][:15],
+                    "tags": [t.strip() for t in tags_validados.split(",") if t.strip()][:15],
                     "categoryId": "26", "defaultLanguage": "es", "defaultAudioLanguage": "es"},
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True},
     }
 
-    try:
-        request = youtube.videos().insert(part="snippet,status", body=body, media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True))
-        response = request.execute()
-        video_id = response["id"]
-        print(f"✅ Short subido con SEO viral: https://youtu.be/{video_id}")
-        fijar_comentario_contacto(youtube, video_id)
-        return video_id
-    except Exception as e:
-        print(f"❌ Error subiendo a YouTube: {e}")
-        return None
+    # 🔥 REINTENTOS AUTOMÁTICOS PARA ERRORES TEMPORALES (502, 503, 504)
+    video_id = None
+    for intento in range(1, 4):
+        try:
+            print(f"📤 Subiendo Short a YouTube (intento {intento}/3)...")
+            request = youtube.videos().insert(
+                part="snippet,status", 
+                body=body, 
+                media_body=MediaFileUpload(video_path, chunksize=-1, resumable=True)
+            )
+            response = request.execute()
+            video_id = response["id"]
+            print(f"✅ Short subido con SEO viral: https://youtu.be/{video_id}")
+            fijar_comentario_contacto(youtube, video_id)
+            return video_id
+        except Exception as e:
+            error_str = str(e)
+            if "502" in error_str or "503" in error_str or "504" in error_str or "Bad Gateway" in error_str:
+                print(f"⚠️ Error temporal de YouTube (intento {intento}/3): {error_str[:100]}...")
+                if intento < 3:
+                    espera = 30 * intento
+                    print(f"⏳ Esperando {espera}s antes de reintentar...")
+                    time.sleep(espera)
+                else:
+                    print(f"❌ Falló tras 3 intentos. Error: {e}")
+                    return None
+            elif "invalidTags" in error_str:
+                print(f"❌ Tags inválidos detectados. Error: {error_str[:200]}")
+                return None
+            else:
+                print(f"❌ Error subiendo a YouTube: {e}")
+                return None
+    
+    return None
 
 # ================================================================
 # 🚀 MAIN
@@ -952,7 +1198,7 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 def main():
     print("🌿 Bot Herbolaria ÉLITE - YouTube Shorts (SEO VIRAL + Flux Cloudflare + Blindado)")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"🎤 Voz: {CONFIG_VOZ_ACTUAL['voz']} ({CONFIG_VOZ_ACTUAL['estilo']})")
+    print(f"⏰ Ventana de publicación: 4:00 AM a 11:59 PM CDMX (excepto madrugada)")
     print(f"🔥 Motor de keywords virales ACTIVO")
 
     estado = cargar_estado()
