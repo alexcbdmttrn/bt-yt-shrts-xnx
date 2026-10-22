@@ -30,7 +30,7 @@ from rembg import remove
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ================================================================
-# CONFIGURACIÓN - VIDEOS LARGOS HERBOLARIA (HORIZONTAL 16:9)
+# CONFIGURACIÓN - VIDEOS LARGOS HERBOLARIA (HORIZONTAL 16:9) NIVEL 2
 # ================================================================
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -229,17 +229,34 @@ VOCES_DISPONIBLES = [
 ]
 
 # ================================================================
+# ⚡ MOTOR DE TÍTULOS POWER (LARGOS NIVEL 2 - emojis + números + power words)
+# ================================================================
+EMOJIS_TITULO = ["🌿", "✨", "💪", "🔥", "", "", "🌱", "☀️", "🍵", "🦴", "", "⚡", "🌸", ""]
+
+FORMULAS_POWER_LARGO = [
+    "{e1} {ingrediente}: {num} secretos para {problema} que pocos conocen {e2}",
+    "{e1} ¿{problema_cap}? Esto es lo que {ingrediente} hace en tu cuerpo {e2}",
+    "{e1} {ingrediente}: {num} beneficios reales según la herbolaria {e2}",
+    "{e1} El poder oculto de {ingrediente} para {problema} {e2}",
+    "{e1} {problema_cap}: así apoya {ingrediente} tu bienestar {e2}",
+    "{e1} {ingrediente} + tradición: {num} usos que debes conocer {e2}",
+    "{e1} Lo que los abuelos sabían de {ingrediente} para {problema} {e2}",
+    "{e1} ¿Usas {ingrediente}? {num} cosas que nadie te explicó {e2}",
+    "{e1} {ingrediente} para {problema}: mito o tradición real {e2}",
+    "{e1} {num} razones por las que {ingrediente} sigue vigente {e2}",
+    "{e1} {ingrediente}: el aliado ancestral para {problema} {e2}",
+    "{e1} {ingrediente} por dentro: {num} efectos en tu bienestar {e2}",
+]
+
+# ================================================================
 # 🎯 MOTOR DE FÓRMULAS DE TÍTULOS VARIADAS (ANTI-REPETICIÓN)
 # ================================================================
-# 30+ fórmulas de títulos que rotan para evitar que YouTube marque spam
 FORMULAS_TITULOS_VARIADAS = {
-    # 🔍 Búsqueda (10% del tiempo, no abusar)
     "busqueda": [
         "Para qué sirve {ingrediente} en remedios naturales",
         "Para qué sirve {ingrediente} y cómo usarlo",
         "Qué es {ingrediente} y por qué lo necesitas",
     ],
-    # 🤔 Preguntas impactantes (15%)
     "pregunta": [
         "¿Sabías que {ingrediente} ayuda con {problema}?",
         "¿Conocías este uso del {ingrediente}?",
@@ -247,15 +264,13 @@ FORMULAS_TITULOS_VARIADAS = {
         "¿{ingrediente} realmente funciona para {problema}?",
         "¿Qué pasa si consumes {ingrediente} todos los días?",
     ],
-    # 🔐 Secretos y revelaciones (15%)
     "secreto": [
         "El secreto ancestral del {ingrediente} para {problema}",
         "Lo que nadie te contó sobre el {ingrediente}",
         "El poder oculto del {ingrediente} en tu salud",
         "La verdad sobre {ingrediente} que pocos conocen",
-        "El {ingrediente}: secreto de la herbolaria mexicana",
+        "{ingrediente}: secreto de la herbolaria mexicana",
     ],
-    # 🎯 Problema-Solución (15%)
     "problema_solucion": [
         "{problema}: el remedio natural con {ingrediente}",
         "Si sufres de {problema}, prueba {ingrediente}",
@@ -263,39 +278,96 @@ FORMULAS_TITULOS_VARIADAS = {
         "Adiós {problema}: descubre {ingrediente}",
         "¿Cansado de {problema}? Conoce {ingrediente}",
     ],
-    # 📊 Beneficios específicos (12%)
     "beneficios": [
         "5 formas en que {ingrediente} mejora tu salud",
         "{ingrediente}: 3 beneficios que cambiarán tu vida",
         "Los beneficios del {ingrediente} que debes conocer",
         "Cómo {ingrediente} transforma tu bienestar diario",
     ],
-    # 🌿 Tradición y abuelos (10%)
     "tradicional": [
         "Por qué los abuelos confiaban en el {ingrediente}",
         "{ingrediente}: la herencia de la medicina tradicional",
         "La sabiduría ancestral del {ingrediente} para tu salud",
         "{ingrediente}: remedio tradicional mexicano",
     ],
-    # ⚡ Acción directa / Cómo usar (10%)
     "como_usar": [
         "Cómo usar {ingrediente} correctamente para {problema}",
         "La forma correcta de aprovechar {ingrediente}",
         "{ingrediente}: guía completa de uso tradicional",
         "Prepara {ingrediente} así y siente la diferencia",
     ],
-    # 💊 Ciencia y evidencia (8%)
     "cientifico": [
         "Lo que dice la ciencia sobre {ingrediente}",
         "{ingrediente}: entre la tradición y la evidencia",
         "Por qué {ingrediente} es reconocido en herbolaria",
     ],
-    # ⚠️ Advertencias / Verdades (5%)
     "verdad": [
         "Lo que debes saber antes de usar {ingrediente}",
         "Errores comunes al usar {ingrediente}",
         "La verdad sobre {ingrediente} en remedios caseros",
     ],
+}
+
+# ================================================================
+# 🏷️ TAGS DE VOLUMEN REAL (48 síntomas + mega volumen) - NIVEL 2
+# ================================================================
+TAGS_MEGA_VOLUMEN = [
+    "remedios naturales", "remedios caseros", "plantas medicinales",
+    "hierbas medicinales", "medicina natural", "salud natural",
+    "herbolaria mexicana", "beneficios de las plantas", "vida saludable",
+    "salud y bienestar", "nutricion natural", "suplementos naturales",
+    "remedios de la abuela", "herbolaria tradicional",
+]
+
+TAGS_SINTOMAS_VOLUMEN = {
+    "circul": ["circulación sanguínea", "mejorar la circulación", "remedios para la circulación"],
+    "presión": ["presión alta remedios", "bajar la presión naturalmente"],
+    "insomnio": ["insomnio remedios", "dormir mejor naturalmente"],
+    "sueño": ["dormir bien remedios", "insomnio remedios naturales"],
+    "digest": ["mejorar la digestión", "digestión pesada remedios"],
+    "gastritis": ["gastritis remedios naturales", "estómago sano remedios"],
+    "colesterol": ["colesterol alto remedios", "bajar el colesterol naturalmente"],
+    "energ": ["energía natural", "fatiga remedios naturales"],
+    "cansancio": ["cansancio crónico remedios", "energía vital"],
+    "defensas": ["defensas bajas remedios", "subir defensas naturalmente"],
+    "inmunol": ["sistema inmunológico fuerte", "defensas naturales"],
+    "estrés": ["estrés remedios naturales", "relajarse naturalmente"],
+    "ansiedad": ["ansiedad remedios naturales", "calmar la ansiedad"],
+    "nervios": ["nervios alterados remedios", "calmar los nervios naturalmente"],
+    "azúcar": ["azúcar en sangre remedios", "controlar el azúcar naturalmente"],
+    "diabetes": ["diabetes remedios naturales", "glucosa alta remedios"],
+    "piel": ["cuidado de la piel natural", "piel sana remedios"],
+    "acné": ["acné remedios naturales", "piel limpia remedios"],
+    "cabello": ["cabello sano remedios", "caída del cabello remedios"],
+    "uñas": ["uñas fuertes remedios", "uñas quebradizas remedios"],
+    "várices": ["várices remedios naturales", "piernas cansadas remedios"],
+    "hemorroides": ["hemorroides remedios naturales", "aliviar hemorroides"],
+    "memoria": ["memoria y concentración", "mente clara remedios"],
+    "cerebro": ["salud cerebral natural", "concentración remedios"],
+    "inflam": ["desinflamar naturalmente", "inflamación remedios"],
+    "dolor": ["dolor muscular remedios", "aliviar el dolor naturalmente"],
+    "detox": ["desintoxicar el cuerpo", "riñones sanos remedios"],
+    "menopausia": ["menopausia remedios naturales", "sofocos remedios"],
+    "próstata": ["próstata sana remedios", "salud prostática natural"],
+    "corazón": ["salud del corazón natural", "corazón sano remedios"],
+    "cardio": ["salud cardiovascular natural", "corazón fuerte remedios"],
+    "hígado": ["hígado sano remedios", "desintoxicar el hígado"],
+    "pulmones": ["pulmones sanos remedios", "salud respiratoria natural"],
+    "respir": ["bronquios remedios", "resfriado remedios naturales"],
+    "gripe": ["gripe remedios naturales", "resfriado remedios"],
+    "tos": ["tos remedios naturales", "aliviar la tos"],
+    "alergia": ["alergia remedios naturales", "antihistamínico natural"],
+    "artritis": ["artritis remedios naturales", "dolor articular remedios"],
+    "articulaciones": ["articulaciones sanas remedios", "dolor de rodilla"],
+    "envejecimiento": ["antienvejecimiento natural", "rejuvenecer naturalmente"],
+    "quemaduras": ["quemaduras remedios naturales", "piel quemada remedios"],
+    "laxante": ["estreñimiento remedios", "laxante natural"],
+    "estreñimiento": ["estreñimiento remedios naturales", "digestión lenta"],
+    "obesidad": ["control de peso natural", "bajar de peso naturalmente"],
+    "adelgaz": ["perder peso naturalmente", "remedios para adelgazar"],
+    "retención": ["retención de líquidos remedios", "desinflamar líquidos"],
+    "sudor": ["sudoración excesiva remedios", "mal olor corporal"],
+    "olor": ["mal olor remedios", "desodorante natural"],
 }
 
 # ================================================================
@@ -319,6 +391,8 @@ def guardar_ingrediente_largo_usado(ingrediente, producto):
     entry = f"{ingrediente}|{producto}"
     if entry not in data["ingredientes"]:
         data["ingredientes"].append(entry)
+    if len(data["ingredientes"]) > 80:
+        data["ingredientes"] = data["ingredientes"][-80:]
     with open(INGREDIENTES_LARGOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
 
 def reiniciar_ingredientes_largos():
@@ -333,7 +407,6 @@ def guardar_titulo(titulo):
     data = cargar_titulos()
     if titulo not in data["titulos"]:
         data["titulos"].append(titulo)
-        # Mantener solo los últimos 100 títulos para no crecer demasiado
         if len(data["titulos"]) > 100:
             data["titulos"] = data["titulos"][-100:]
         with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
@@ -431,122 +504,125 @@ def obtener_keywords_aleatorias_virales(cantidad=5):
     return seleccionadas
 
 # ================================================================
-# 🎯 OPTIMIZADOR DE TÍTULOS CON FÓRMULAS VARIADAS + ANTI-REPETICIÓN
+# ⚡ ANTI-REPETICIÓN: FIRMA + FAMILIA SATURADA + EXISTENCIA
 # ================================================================
+def firma_titulo(t):
+    """Primeras 3 palabras del título en lowercase."""
+    return " ".join(re.findall(r'\w+', t.lower())[:3])
+
+def familia_titulo(t):
+    """Detecta la familia/patrón del título."""
+    tl = t.lower()
+    if tl.startswith("para qué sirve") or tl.startswith("para que sirve"):
+        return "para_que_sirve"
+    if "secreto ancestral" in tl or tl.startswith("el secreto"):
+        return "secreto_ancestral"
+    if tl.startswith("¿"):
+        return "pregunta"
+    if "beneficios" in tl:
+        return "beneficios"
+    if "cómo usar" in tl or "como usar" in tl:
+        return "como_usar"
+    if "abuelos" in tl or "tradición" in tl or "tradicional" in tl:
+        return "tradicional"
+    if "verdad" in tl or "nadie te" in tl:
+        return "verdad"
+    return "power_otro"
+
+def patron_saturado(titulo_candidato, ventana=6, max_rep=2):
+    """Bloquea familias de título que ya se usaron 2+ veces en los últimos 6 videos."""
+    titulos = cargar_titulos().get("titulos", [])[-ventana:]
+    fam = familia_titulo(titulo_candidato)
+    conteo = sum(1 for t in titulos if familia_titulo(t) == fam)
+    return conteo >= max_rep
+
 def titulo_ya_existe(titulo_candidato):
     """Verifica si un título (o uno muy similar) ya fue publicado."""
     titulos_publicados = cargar_titulos().get("titulos", [])
     candidato_lower = titulo_candidato.lower().strip()
     
+    # Verificar firma (primeras 3 palabras) en últimos 6 videos
+    firmas_recientes = [firma_titulo(x) for x in titulos_publicados[-6:]]
+    if firma_titulo(titulo_candidato) in firmas_recientes:
+        return True
+    
     for t_pub in titulos_publicados:
         t_pub_lower = t_pub.lower().strip()
-        # Coincidencia exacta
         if candidato_lower == t_pub_lower:
             return True
-        # Coincidencia alta (más del 85% de palabras iguales)
         palabras_cand = set(re.findall(r'\w+', candidato_lower))
         palabras_pub = set(re.findall(r'\w+', t_pub_lower))
         if palabras_cand and palabras_pub:
             interseccion = palabras_cand & palabras_pub
             union = palabras_cand | palabras_pub
-            similitud = len(interseccion) / len(union)
+            similitud = len(interseccion) / len(union) if union else 0
             if similitud > 0.85:
                 return True
     return False
 
-def generar_titulo_variado(ingrediente, problema=None):
-    """
-    Genera un título usando una fórmula aleatoria de las 30+ disponibles.
-    Evita repetir patrones recientes y verifica contra títulos publicados.
-    """
-    # Pesos para rotar categorías (busqueda tiene peso bajo para no abusar)
-    categorias_pesos = {
-        "busqueda": 2,            # Solo 2% - ya no abusa de "Para qué sirve"
-        "pregunta": 15,
-        "secreto": 15,
-        "problema_solucion": 18,
-        "beneficios": 15,
-        "tradicional": 12,
-        "como_usar": 12,
-        "cientifico": 7,
-        "verdad": 4,
-    }
+def generar_titulo_power_largo(ingrediente, problema=None):
+    """Título POWER ≤70 chars con emoji + número + power word. Anti-plantilla."""
+    problemas = [p.strip() for p in str(problema or "").split(",") if p.strip()]
+    prob = problemas[0].lower() if problemas else "tu bienestar"
+    if len(prob) > 26:
+        prob = prob[:26].rsplit(" ", 1)[0]
+    num = random.choice([3, 4, 5, 7])
+    e1, e2 = random.sample(EMOJIS_TITULO, 2)
     
-    # Normalizar problema para usarlo en fórmulas
-    problema_limpio = ""
-    if problema:
-        problemas_lista = [p.strip() for p in str(problema).split(",") if p.strip()]
-        if problemas_lista:
-            problema_limpio = random.choice(problemas_lista[:3])
+    # Intentar fórmulas POWER (80%) o variadas (20%)
+    for _ in range(20):
+        if random.random() < 0.8:
+            formula = random.choice(FORMULAS_POWER_LARGO)
+            t = formula.format(ingrediente=ingrediente, problema=prob,
+                               problema_cap=prob.capitalize(), num=num, e1=e1, e2=e2)
+        else:
+            cat = random.choice(list(FORMULAS_TITULOS_VARIADAS.keys()))
+            formula = random.choice(FORMULAS_TITULOS_VARIADAS[cat])
+            t = formula.format(ingrediente=ingrediente, problema=prob)
+        
+        t = re.sub(r'\s+', ' ', t).strip()
+        if len(t) > 70:
+            t = t[:67].rsplit(" ", 1)[0] + " " + e2
+        if any(p in t.lower() for p in PALABRAS_PROHIBIDAS_TITULO):
+            continue
+        if patron_saturado(t) or titulo_ya_existe(t):
+            continue
+        return t
     
-    # Intentar hasta 10 veces encontrar un título que no esté repetido
-    for _ in range(10):
-        # Elegir categoría según pesos
-        categorias = list(categorias_pesos.keys())
-        pesos = [categorias_pesos[c] for c in categorias]
-        categoria_elegida = random.choices(categorias, weights=pesos, k=1)[0]
-        
-        # Elegir fórmula dentro de la categoría
-        formulas = FORMULAS_TITULOS_VARIADAS[categoria_elegida]
-        formula = random.choice(formulas)
-        
-        # Sustituir variables
-        titulo = formula.format(
-            ingrediente=ingrediente,
-            problema=problema_limpio or "tu bienestar"
-        )
-        
-        # Verificar que no exista ya
-        if not titulo_ya_existe(titulo):
-            return titulo, categoria_elegida
-    
-    # Si después de 10 intentos todos están repetidos, usar uno aunque se repita
-    return titulo, categoria_elegida
+    # Último recurso
+    return f"{e1} {ingrediente}: tradición y bienestar {e2}"[:70]
 
 def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
     """
-    Optimiza el título con un sistema INTELIGENTE:
-    1. Si la IA ya generó un título variado y seguro → lo RESPETA (no lo sobrescribe)
-    2. Si el título es muy genérico o tiene palabras prohibidas → inyecta fórmula variada
-    3. Verifica que no esté repetido contra títulos publicados
+    Optimiza título con sistema INTELIGENTE NIVEL 2:
+    1. Si IA generó título POWER y familia no saturada → lo RESPETA
+    2. Si no, genera título POWER con anti-patrón saturado
+    3. Verifica firma + familia + existencia
     """
     t = re.sub(r'#\w+', '', (titulo_ia or "").strip()).strip()
     lower = t.lower()
 
-    # 1) Si tiene palabras prohibidas → descartar y usar fórmula variada
+    # 1) Palabras prohibidas → descartar
     if any(p in lower for p in PALABRAS_PROHIBIDAS_TITULO):
-        print("🛡️ Título con palabra prohibida → generando fórmula variada...")
+        print("🛡️ Título con palabra prohibida → generando POWER...")
         t = ""
 
-    # 2) Analizar si el título de la IA ya es bueno y variado
-    titulo_ia_es_bueno = False
-    if t and len(t) >= 25:  # longitud mínima razonable
-        # Verificar si NO inicia con el patrón sobreusado "Para qué sirve"
-        inicia_con_para_que_sirve = lower.startswith("para qué sirve") or lower.startswith("para que sirve")
-        
-        # Verificar si tiene keywords virales
-        keywords_presentes = ["remedios", "salud natural", "medicina natural", "hierbas",
-                              "beneficios", "propiedades", "cómo usar", "herbolaria",
-                              "plantas medicinales", "remedio casero", "tradición",
-                              "sabías", "aliado", "apoya", "usos", "secreto",
-                              "verdad", "abuelos", "ancestral"]
-        tiene_keyword = any(kw in lower for kw in keywords_presentes)
-        
-        # Si no inicia con "Para qué sirve" Y tiene keyword Y no está repetido → respetar
-        if not inicia_con_para_que_sirve and tiene_keyword and not titulo_ya_existe(t):
-            titulo_ia_es_bueno = True
-            print(f"✅ Respetando título variado de la IA: {t}")
+    # 2) Detectar si título IA es POWER y su familia no está saturada
+    tiene_emoji = any(e in t for e in EMOJIS_TITULO)
+    tiene_numero = bool(re.search(r'\d', t))
+    power_words = ["secreto", "poder", "verdad", "descubre", "sorprende", "razones", "efectos", "aliado"]
+    es_power = tiene_emoji or tiene_numero or any(pw in lower for pw in power_words)
 
-    # 3) Si el título de la IA es bueno, usarlo; si no, generar uno variado
-    if titulo_ia_es_bueno:
-        return t[:70]
-    
-    # 4) Generar título con fórmula variada
-    print("🎲 Generando título con fórmula variada (anti-repetición)...")
-    titulo_variado, categoria = generar_titulo_variado(ingrediente, problema)
-    print(f"🔥 Fórmula usada: [{categoria}] → {titulo_variado}")
-    
-    return titulo_variado[:70]
+    if t and es_power and 25 <= len(t) <= 70:
+        if not patron_saturado(t) and not titulo_ya_existe(t):
+            print(f"✅ Respetando título POWER de la IA [{familia_titulo(t)}]: {t}")
+            return t[:70]
+
+    # 3) Generar título POWER con anti-patrón
+    print("⚡ Generando título POWER con anti-patrón saturado...")
+    titulo = generar_titulo_power_largo(ingrediente, problema)
+    print(f"⚡ Título POWER [{familia_titulo(titulo)}]: {titulo}")
+    return titulo[:70]
 
 # ================================================================
 # 🎯 CLASIFICADOR DE INGREDIENTES MEJORADO
@@ -597,7 +673,7 @@ def clasificar_ingrediente(ingrediente):
     return "planta"
 
 # ================================================================
-# 🎯 GENERADOR DE TAGS SEO ELITE (CORREGIDO - validación estricta)
+# 🎯 GENERADOR DE TAGS SEO ELITE NIVEL 2 (llenan ~490/500 chars)
 # ================================================================
 def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     tags = []
@@ -606,6 +682,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     
     print(f"   🎯 Ingrediente clasificado como: {tipo}")
     
+    # Tags del ingrediente base
     tags.append(ing_lower)
     
     if tipo == "planta":
@@ -614,12 +691,9 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
             f"hierba {ing_lower}",
             f"remedio {ing_lower}",
             f"{ing_lower} medicinal",
+            f"té de {ing_lower}",
+            f"infusión de {ing_lower}",
         ])
-        if ing_lower not in ["mentol", "alcanfor", "resina"]:
-            tags.extend([
-                f"te de {ing_lower}",
-                f"infusion de {ing_lower}",
-            ])
     elif tipo == "compuesto":
         tags.extend([
             f"{ing_lower} beneficios",
@@ -630,7 +704,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         ])
     elif tipo == "lipido":
         tags.extend([
-            f"acido graso {ing_lower}",
+            f"ácido graso {ing_lower}",
             f"suplemento {ing_lower}",
             f"{ing_lower} beneficios",
             f"omega 3 natural",
@@ -666,7 +740,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         ])
     elif tipo == "raiz":
         tags.extend([
-            f"raiz de {ing_lower}",
+            f"raíz de {ing_lower}",
             f"{ing_lower} medicinal",
             f"remedio {ing_lower}",
             f"{ing_lower} beneficios",
@@ -675,7 +749,8 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     tags.extend([
         f"beneficios {ing_lower}",
         f"propiedades {ing_lower}",
-        f"para que sirve {ing_lower}",
+        f"para qué sirve {ing_lower}",
+        f"cómo usar {ing_lower}",
     ])
     
     tags.extend([
@@ -683,6 +758,17 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         f"{ing_lower} usos y beneficios",
     ])
     
+    # 🔥 TAGS DE SÍNTOMAS CON VOLUMEN REAL (máx 10)
+    prob_txt = str(problema or "").lower()
+    agregados_sintoma = 0
+    for clave, frases in TAGS_SINTOMAS_VOLUMEN.items():
+        if clave in prob_txt and agregados_sintoma < 10:
+            for fr in frases[:2]:
+                if len(fr) <= 29:
+                    tags.append(fr)
+                    agregados_sintoma += 1
+    
+    # Síntomas crudos + combinados
     if problema:
         problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
         for prob in problemas_individuales[:5]:
@@ -694,28 +780,10 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
                 if len(tag_rem) <= 29:
                     tags.append(tag_rem)
     
-    tags_generales = [
-        "remedios naturales",
-        "remedios caseros",
-        "salud natural",
-        "medicina natural",
-        "bienestar natural",
-        "salud y bienestar",
-        "nutricion natural",
-        "vida saludable",
-        "suplementos naturales",
-    ]
+    # Mega volumen
+    tags.extend(TAGS_MEGA_VOLUMEN)
     
-    if tipo == "planta":
-        tags_generales.extend([
-            "herbolaria mexicana",
-            "plantas medicinales",
-            "hierbas medicinales",
-            "tradicion mexicana",
-        ])
-    
-    tags.extend(tags_generales)
-    
+    # Palabras del título
     if titulo:
         palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if 4 < len(p) <= 20]
         for p in palabras_titulo[:4]:
@@ -728,6 +796,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
             if len(kw_l) <= 29 and kw_l not in [t.lower() for t in tags]:
                 tags.append(kw_l)
     
+    # Limpieza estricta
     tags_unicos = []
     vistos = set()
     for tag in tags:
@@ -735,7 +804,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
         
         if len(tag_limpio) > 29:
             continue
-        if len(tag_limpio) < 2:
+        if len(tag_limpio) < 3:
             continue
         if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
             continue
@@ -750,7 +819,7 @@ def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
     resultado = []
     total_chars = 0
     for tag in tags_unicos:
-        if total_chars + len(tag) + 1 > 495:
+        if total_chars + len(tag) + 1 > 492:
             break
         resultado.append(tag)
         total_chars += len(tag) + 1
@@ -787,11 +856,11 @@ def generar_tags_emergencia(ingrediente):
     total_chars = 0
     for tag in tags_seguros:
         tag_limpio = tag.strip().lower()
-        if len(tag_limpio) > 29 or len(tag_limpio) < 2:
+        if len(tag_limpio) > 29 or len(tag_limpio) < 3:
             continue
         if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
             continue
-        if total_chars + len(tag_limpio) + 1 > 495:
+        if total_chars + len(tag_limpio) + 1 > 490:
             break
         resultado.append(tag_limpio)
         total_chars += len(tag_limpio) + 1
@@ -799,7 +868,7 @@ def generar_tags_emergencia(ingrediente):
     return ", ".join(resultado[:15])
 
 # ================================================================
-# 🤖 IA GENERA GUION (MEJORADO - pide título variado)
+# 🤖 IA GENERA GUION (MEJORADO - hook keyword-first + título variado)
 # ================================================================
 def ia_genera_guion_largo(producto, ingrediente, tema_viral):
     info_catalogo = obtener_info_ingrediente_catalogo(ingrediente) or "Sin ficha en catálogo; usa conocimiento general verificado."
@@ -808,7 +877,6 @@ def ia_genera_guion_largo(producto, ingrediente, tema_viral):
     keywords_virales_prompt = obtener_keywords_aleatorias_virales(8)
     prohibidas_str = ", ".join(f'"{p}"' for p in PALABRAS_PROHIBIDAS_TITULO[:40]) + "..."
 
-    # 🔥 PROMPT MEJORADO: pide a la IA un título VARIADO, no "Para qué sirve"
     prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (3 a 4 minutos máximo, horizontal) OPTIMIZADOS para búsquedas virales y 100% SEGUROS ante las políticas de YouTube.
 
 📦 PRODUCTO COMPLETO:
@@ -832,7 +900,7 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
 Sé directo, conciso y evita relleno. Cada palabra cuenta. Respeta estrictamente los conteos de palabras.
 
 🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~3:30 minutos reales):
-1. "hook" (35-45 palabras): Pregunta o dato impactante del ingrediente (usa el dato curioso). INCLUYE una keyword viral.
+1. "hook" (35-45 palabras): ⚠️ CRÍTICO - La PRIMERA ORACIÓN debe decir el nombre del ingrediente Y el beneficio principal en menos de 15 palabras (YouTube indexa las primeras palabras habladas). Ejemplo: "La zarzaparrilla es la raíz que tu circulación estaba esperando." Gancho emocional + keyword viral.
 2. "problema" (65-80 palabras): El problema/síntoma que sufre la audiencia ({problema}).
 3. "ingrediente" (95-110 palabras): Presenta el ingrediente estrella, origen breve.
 4. "beneficio_1" (65-80 palabras): Primer beneficio según la tradición.
@@ -858,18 +926,17 @@ NUNCA uses:
 - "remedios naturales", "remedios caseros", "medicina natural"
 
 📝 TÍTULO DEL VIDEO (MUY IMPORTANTE - VARIEDAD OBLIGATORIA):
-⚠️ NO uses SIEMPRE "Para qué sirve..." porque YouTube lo detecta como spam.
+⚠️ PROHIBIDO iniciar SIEMPRE con "Para qué sirve" o "El secreto ancestral del" (ya están saturados en el canal).
 ⚠️ VARÍA el inicio del título usando UNA de estas fórmulas (elige solo una):
 
-FÓRMULAS DISPONIBLES (elige UNA al azar):
-A) Pregunta impactante: "¿Sabías que {ingrediente} ayuda con {problema}?"
-B) Secreto/revelación: "El secreto ancestral del {ingrediente} para {problema}"
-C) Problema-solución: "{problema}: el remedio natural con {ingrediente}"
-D) Tradición: "Por qué los abuelos usaban {ingrediente}"
-E) Acción: "Cómo usar {ingrediente} correctamente"
-F) Beneficio: "{ingrediente}: 5 beneficios que cambiarán tu salud"
-G) Verdad: "Lo que nadie te contó sobre el {ingrediente}"
-H) Búsqueda (solo 1 de cada 10): "Para qué sirve {ingrediente} en remedios naturales"
+FÓRMULAS DISPONIBLES (elige UNA al azar, con 1 emoji y 1 número cuando sea natural):
+A) "🌿 {ingrediente}: 3 secretos para {problema} que pocos conocen ⚡"
+B) "🫀 ¿{problema}? Esto es lo que {ingrediente} hace en tu cuerpo 🌿"
+C) "✨ {ingrediente}: 5 beneficios reales según la herbolaria 💪"
+D) "🌱 El poder oculto de {ingrediente} para {problema} 🔥"
+E) "💚 {problema}: así apoya {ingrediente} tu bienestar 🌿"
+F) "☀️ Lo que los abuelos sabían de {ingrediente} para {problema} 🍵"
+G) "⚡ ¿Usas {ingrediente}? 7 cosas que nadie te explicó ✨"
 
 El título DEBE ser VARIADO, con keyword natural, máx 65 caracteres, SIN hashtags, 100% seguro.
 
@@ -898,7 +965,7 @@ Devuelve ESTRICTAMENTE este JSON:
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.85, "max_tokens": 3000, "response_format": {"type": "json_object"}}, timeout=120)
+                      "temperature": 0.9, "max_tokens": 3000, "response_format": {"type": "json_object"}}, timeout=120)
             r.raise_for_status()
             resp = r.json()["choices"][0]["message"]["content"].strip()
             resp = re.sub(r'`json\s*', '', resp).replace('`', '')
@@ -936,6 +1003,7 @@ Devuelve ESTRICTAMENTE este JSON:
 # 🎤 VOZ CON REINTENTOS + FALLBACK INTELIGENTE
 # ================================================================
 def validar_voz():
+    """Prueba cada voz hasta encontrar una que funcione."""
     for voz in VOCES_DISPONIBLES:
         try:
             print(f"🎤 Probando voz: {voz['voz']} ({voz['estilo']})...")
@@ -954,6 +1022,10 @@ def validar_voz():
     return VOCES_DISPONIBLES[0]
 
 def generar_audio(texto, path, voz, max_intentos=3):
+    """
+    Genera audio con reintentos automáticos.
+    Si falla una voz, prueba con las siguientes disponibles.
+    """
     texto_limpio = re.sub(r'[^\w\sáéíóúüñÁÉÍÓÚÜÑ0-9\s.,;:!?¿¡\'\"]', '', texto)
     
     for intento in range(max_intentos):
@@ -1539,26 +1611,29 @@ def obtener_credenciales_youtube():
             sys.exit(1)
     return creds
 
-def fijar_comentario_contacto(youtube, video_id):
+def fijar_comentario_contacto(youtube, video_id, ingrediente="", problema=""):
+    """Comentario con PREGUNTA (dispara comentarios = señal de ranking)."""
     try:
+        prob_corto = problema.split(",")[0].strip().lower() if problema else "tu bienestar"
         texto = (
-            "🌿 ¿Dudas o quieres adquirir este producto? Escríbenos:\n\n"
+            f"🌿 {ingrediente.upper()} para {prob_corto}: ¿lo habías usado antes?\n"
+            f"👇 Cuéntame en los comentarios qué otro remedio natural quieres que investigue\n\n"
             f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
             f"📞 Teléfono: {TELEFONO_NUMBER}\n"
             f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
-            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}\n\n"
-            "👇 Coméntame qué remedio natural quieres que investiguemos en el próximo video."
+            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}"
         )
         youtube.commentThreads().insert(
             part="snippet",
             body={"snippet": {"videoId": video_id,
                               "topLevelComment": {"snippet": {"textOriginal": texto}}}}
         ).execute()
-        print("✅ Comentario de contacto publicado (con contraseña)")
+        print("✅ Comentario con pregunta publicado")
     except Exception as e:
         print(f"⚠️ Error comentario: {e}")
 
 def validar_tags_youtube(tags_str):
+    """Validación ultra-estricta de tags para YouTube."""
     if not tags_str:
         return "remedios naturales, salud natural, bienestar"
     
@@ -1601,11 +1676,15 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
     youtube = build("youtube", "v3", credentials=creds)
 
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
+    problema_corto = problema.split(",")[0].strip().lower() if problema else "bienestar"
     
     tags_validados = validar_tags_youtube(tags_str)
     print(f"🏷️ Tags validados para YouTube ({len(tags_validados.split(','))} tags)")
 
-    descripcion = f"""{gancho}
+    # 🔥 DESCRIPCIÓN KEYWORD-DENSA NIVEL 2
+    descripcion = f"""🌿 {ingrediente} para {problema_corto} | remedios naturales y herbolaria mexicana
+
+{gancho}
 
 {contexto}
 
@@ -1623,11 +1702,13 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 
 ⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
 
-🔍 En este video aprenderás:
-• Para qué sirve el {ingrediente} en la herbolaria mexicana
-• Beneficios y propiedades tradicionales del {ingrediente}
-• Cómo usar el {ingrediente} como remedio natural
-• El producto recomendado con {ingrediente} y dónde conseguirlo
+🔍 EN ESTE VIDEO:
+• {ingrediente}: origen y uso tradicional en México
+• Cómo apoya {ingrediente} en {problema_corto}
+• 3 beneficios según la herbolaria
+• El producto con {ingrediente} y cómo usarlo
+
+🔎 Búsquedas relacionadas: {ingrediente} beneficios, {ingrediente} propiedades, remedios para {problema_corto}, hierbas medicinales mexicanas, medicina natural, plantas medicinales
 
 #remediosnaturales #remedioscaseros #saludnatural #medicinanatural #herbolaria #hierbasmedicinales #{ingrediente.replace(' ', '')}"""
 
@@ -1691,15 +1772,14 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
         except Exception as e:
             print(f"⚠️ Error miniatura: {e}")
 
-    fijar_comentario_contacto(youtube, video_id)
+    fijar_comentario_contacto(youtube, video_id, ingrediente, problema or "")
     return video_id
 
 # ================================================================
 # 🚀 MAIN
 # ================================================================
 def main():
-    print("🎬 Bot VIDEOS LARGOS Herbolaria (Horizontal 16:9, ~3-4 min)")
-    print("🔥 SEO ELITE + 30 Fórmulas de Títulos Variadas + Anti-Repetición")
+    print("🎬 Bot VIDEOS LARGOS Herbolaria NIVEL 2 (Anti-patrón + Tags 500 chars + SEO denso)")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"⏰ Ventana de publicación: 4:00 AM a 11:59 PM CDMX (excepto madrugada)")
 
@@ -1783,7 +1863,7 @@ def main():
     estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
     guardar_estado(estado)
 
-    print(f"\n🎉 VIDEO LARGO PUBLICADO CON SEO ELITE: https://youtu.be/{video_id}")
+    print(f"\n🎉 VIDEO LARGO NIVEL 2 PUBLICADO: https://youtu.be/{video_id}")
     print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
     print(f"   📞 Teléfono: {TELEFONO_NUMBER}")
     print(f"   🤖 Telegram: {TELEGRAM_BOT}")
