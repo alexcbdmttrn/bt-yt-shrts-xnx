@@ -31,7 +31,7 @@ from rembg import remove
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ================================================================
-# CONFIGURACIÓN ÉLITE - HERBOLARIA XANAX (SHORTS)
+# CONFIGURACIÓN ÉLITE - HERBOLARIA XANAX (SHORTS 25-30 SEG)
 # ================================================================
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -708,7 +708,7 @@ def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
     return generar_tags_alto_volumen(ingrediente, problema, "")
 
 # ================================================================
-# 🤖 IA GENERA CONTENIDO COMPLETO (MEJORADO con hook keyword-first)
+# 🤖 IA GENERA CONTENIDO COMPLETO (25-30 segundos OPTIMIZADO)
 # ================================================================
 def ia_genera_contenido_completo(producto):
     producto_info = f"""
@@ -726,6 +726,8 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 
     prompt = f"""Eres experto en herbolaria, nutrición y SEO para YouTube Shorts. Creas contenido VIRAL y SEGURO optimizado para el algoritmo de Shorts.
 
+⚠️ DURACIÓN OBJETIVO: 25 A 30 SEGUNDOS. Esto es CRÍTICO. Shorts de esta duración tienen el mayor alcance en 2026.
+
 📦 INFORMACIÓN DEL PRODUCTO:
 {producto_info}
 
@@ -736,15 +738,15 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 
 🧠 ANÁLISIS:
 1. ELIGE el ingrediente REAL (NO "sabor X", usa el nombre real)
-2. Genera contenido optimizado
+2. Genera contenido optimizado para 25-30 segundos
 
 📋 CONTENIDO (JSON ESTRICTO):
 
 {{
     "ingrediente_elegido": "Nombre real del ingrediente",
     "titulo": "Título POWER con EMOJI + número + power word. Menos de 55 caracteres. Ejemplos: '🌿 Zarzaparrilla: 3 SECRETOS para tu circulación ⚡', '✨ El PODER oculto de la manzanilla 🌿'. NO uses 'Para qué sirve' como inicio genérico.",
-    "guion_segmento_1": "Texto de 25 segundos (65-75 palabras). ⚠️ CRÍTICO: La PRIMERA ORACIÓN debe decir el nombre del ingrediente Y el beneficio principal en menos de 15 palabras (YouTube indexa las primeras palabras habladas). Ejemplo: 'La zarzaparrilla es la planta que tu circulación estaba esperando. Por siglos, los abuelos la usaron para activar el flujo sanguíneo y aliviar la pesadez en las piernas.' Incluye disclaimer educativo.",
-    "guion_segmento_2": "Texto de 20 segundos (50-60 palabras). Presenta el producto y que contiene el ingrediente. DEBE terminar exactamente con: '¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp al número en la descripción, o a nuestro asesor inteligente de telegram'",
+    "guion_segmento_1": "Texto de 15 segundos (35-45 palabras). ⚠️ CRÍTICO: La PRIMERA ORACIÓN debe decir el nombre del ingrediente Y el beneficio principal en menos de 15 palabras (YouTube indexa las primeras palabras habladas). Ejemplo: 'La zarzaparrilla es la planta que tu circulación estaba esperando. Los abuelos la usaron para activar el flujo sanguíneo.' Incluye disclaimer educativo breve.",
+    "guion_segmento_2": "Texto de 12 segundos (25-35 palabras). Presenta el producto de forma BREVE y directa. DEBE terminar exactamente con: '¿Quieres saber más? Contáctanos por WhatsApp o Telegram, los contactos están en la descripción.'",
     "tags": "NO generes tags, se generan automáticamente",
     "descripcion_corta": "Descripción SEO con keyword (máx 120 caracteres)",
     "gancho_descripcion": "Gancho inicial con keyword (máx 90 caracteres)",
@@ -752,7 +754,13 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
     "query_pexels": "Query en inglés para imagen del ingrediente (vertical 9:16)"
 }}
 
-⚠️ REGLAS CRÍTICAS:
+⚠️ REGLAS CRÍTICAS DE DURACIÓN:
+- guion_segmento_1: MÁXIMO 45 palabras (15 segundos de audio)
+- guion_segmento_2: MÁXIMO 35 palabras (12 segundos de audio)
+- TOTAL: Máximo 80 palabras = ~27 segundos
+- Si te pasas del límite, el video será demasiado largo y el algoritmo lo ignorará
+
+⚠️ OTRAS REGLAS:
 - PRIMERA ORACIÓN del hook = ingrediente + beneficio (SEO hablado)
 - Título con EMOJI + número + power word (<55 chars)
 - El Segmento 2 DEBE terminar con la frase exacta de contacto
@@ -765,11 +773,11 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 
     for intento in range(6):
         try:
-            print(f"🤖 IA analizando producto con SEO viral... (intento {intento+1}/6)")
+            print(f"🤖 IA analizando producto con SEO viral (25-30s)... (intento {intento+1}/6)")
             r = requests.post("https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
                 json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.9, "max_tokens": 1400, "response_format": {"type": "json_object"}}, timeout=90)
+                      "temperature": 0.9, "max_tokens": 1200, "response_format": {"type": "json_object"}}, timeout=90)
             r.raise_for_status()
             respuesta = r.json()["choices"][0]["message"]["content"].strip()
             respuesta = re.sub(r'`json\s*', '', respuesta).replace('`', '')
@@ -780,13 +788,31 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
 
             if "ingrediente_elegido" not in data:
                 raise ValueError("La IA no eligió ingrediente")
-            if "guion_segmento_1" not in data or len(data["guion_segmento_1"]) < 50:
+            if "guion_segmento_1" not in data or len(data["guion_segmento_1"]) < 25:
                 raise ValueError("Texto demasiado corto")
 
+            # Validar longitud de los segmentos
+            seg1_palabras = len(data["guion_segmento_1"].split())
+            seg2_palabras = len(data.get("guion_segmento_2", "").split())
+            
+            print(f"   📏 Segmento 1: {seg1_palabras} palabras")
+            print(f"   📏 Segmento 2: {seg2_palabras} palabras")
+            print(f"   📏 Total: {seg1_palabras + seg2_palabras} palabras (~{(seg1_palabras + seg2_palabras) / 2.7:.0f} seg)")
+            
+            if seg1_palabras > 50:
+                print(f"   ⚠️ Segmento 1 muy largo ({seg1_palabras} palabras). Recortando...")
+                palabras = data["guion_segmento_1"].split()
+                data["guion_segmento_1"] = " ".join(palabras[:45])
+            
+            if seg2_palabras > 40:
+                print(f"   ⚠️ Segmento 2 muy largo ({seg2_palabras} palabras). Recortando...")
+                palabras = data["guion_segmento_2"].split()
+                data["guion_segmento_2"] = " ".join(palabras[:35])
+
             guion_seg2 = data.get("guion_segmento_2", "")
-            if "asesor inteligente de telegram" not in guion_seg2.lower():
+            if "asesor inteligente de telegram" not in guion_seg2.lower() and "telegram" not in guion_seg2.lower():
                 print("⚠️ La IA no incluyó el CTA exacto. Agregándolo...")
-                cta_obligatorio = "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp al número en la descripción, o a nuestro asesor inteligente de telegram"
+                cta_obligatorio = "¿Quieres saber más? Contáctanos por WhatsApp o Telegram, los contactos están en la descripción."
                 oraciones = re.split(r'(?<=[.!?])\s+', guion_seg2)
                 if len(oraciones) > 1:
                     oraciones = oraciones[:-1]
@@ -804,7 +830,7 @@ MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS', 'N/A')}
             if "query_pexels" not in data:
                 data["query_pexels"] = f"{ingrediente} natural healthy"
 
-            print(f"✅ IA generó contenido con SEO viral")
+            print(f"✅ IA generó contenido con SEO viral (25-30s)")
             print(f"   🌱 Ingrediente: {ingrediente}")
             print(f"   ⚡ Título POWER: {data['titulo']}")
             print(f"   🏷️ Tags ({len(data['tags'].split(','))}): {data['tags'][:80]}...")
@@ -991,10 +1017,10 @@ def crear_overlay_aviso(salida="aviso_overlay.png"):
         return None
 
 # ================================================================
-# 🎥 CREAR VIDEO SHORT
+# 🎥 CREAR VIDEO SHORT (25-30 segundos)
 # ================================================================
 def crear_video_con_dos_imagenes_y_texto(guion, img_ingrediente_path, url_producto, ingrediente, bg_producto_path):
-    print("🎬 Renderizando Short con 2 escenas + overlays...")
+    print("🎬 Renderizando Short de 25-30 segundos con 2 escenas + overlays...")
     
     voz_principal = random.choice(VOCES_DISPONIBLES)
     print(f"🎤 Voz principal: {voz_principal['voz']} ({voz_principal['estilo']})")
@@ -1011,6 +1037,13 @@ def crear_video_con_dos_imagenes_y_texto(guion, img_ingrediente_path, url_produc
     duracion_seg1 = clip1.duration
     duracion_seg2 = clip2.duration
     duracion_total = duracion_seg1 + duracion_seg2
+    
+    print(f"⏱️ Duración Segmento 1: {duracion_seg1:.1f}s")
+    print(f"⏱️ Duración Segmento 2: {duracion_seg2:.1f}s")
+    print(f"⏱️ Duración TOTAL: {duracion_total:.1f}s")
+    
+    if duracion_total > 35:
+        print(f"⚠️ Video demasiado largo ({duracion_total:.1f}s). Podría reducirse en futuras iteraciones.")
 
     clips_video = []
 
@@ -1112,7 +1145,8 @@ def crear_video_con_dos_imagenes_y_texto(guion, img_ingrediente_path, url_produc
         texto_cta = "📩 Contáctanos en la descripción"
         img_texto = crear_imagen_texto_cta(texto_cta)
         img_texto.save("temp_texto_cta.png")
-        txt_clip = ImageClip("temp_texto_cta.png").set_duration(15).set_start(max(duracion_total - 15, 0))
+        # Mostrar CTA en los últimos 8 segundos (más tiempo proporcional en video corto)
+        txt_clip = ImageClip("temp_texto_cta.png").set_duration(8).set_start(max(duracion_total - 8, 0))
         txt_clip = txt_clip.set_pos(("center", 1650))
         clips_overlays.append(txt_clip)
         video_final = CompositeVideoClip(clips_overlays)
@@ -1289,9 +1323,9 @@ def subir_a_youtube(video_path, titulo, tags_str, descripcion_corta, gancho, con
 # 🚀 MAIN
 # ================================================================
 def main():
-    print("🚀 Bot Shorts ÉLITE NIVEL 2 — Títulos POWER + Tags Volumen Real + SEO Hablado")
+    print("🚀 Bot Shorts ÉLITE NIVEL 2 — 25-30 SEGUNDOS + Títulos POWER + Tags Volumen Real")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⏰ Ventana: 4AM-12AM CDMX | ⚡ POWER titles | 🏷️ Tags 80+ vidIQ")
+    print(f"⏰ Ventana: 4AM-12AM CDMX | ⚡ POWER titles | 🏷️ Tags 80+ vidIQ | ⏱️ 25-30s")
 
     estado = cargar_estado()
     if not deberia_publicar_ahora(estado):
@@ -1341,7 +1375,7 @@ def main():
         estado["publicaciones_hoy"] += 1
         estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
         guardar_estado(estado)
-        print(f"\n🎉 ¡Short POWER publicado!")
+        print(f"\n🎉 ¡Short POWER publicado (25-30s)!")
         print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
         print(f"   📞 Teléfono: {TELEFONO_NUMBER}")
         print(f"   🤖 Telegram: {TELEGRAM_BOT}")
