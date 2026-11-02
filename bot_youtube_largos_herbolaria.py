@@ -1,16 +1,39 @@
+# -*- coding: utf-8 -*-
+"""
+BOT VIDEOS LARGOS HERBOLARIA - SEO ELITE v3
+ARCHIVO ÚNICO Y AUTÓNOMO: incluye el motor SEO (política, autocompletado, títulos con score, tags).
+
+Mejoras vs. v2:
+  - Filtro de política por palabras completas (regex), duro vs suave. Arreglado el bug de emojis vacíos.
+  - Autocompletado real de YouTube México -> keywords reales en guion, título, tags y descripción.
+  - Títulos: IA + fórmulas -> candidatos puntuados 0-100, elige el mejor.
+  - Tags en capas (exacto, específicos, generales, cola larga, variantes) con 500 caracteres aprovechados.
+  - Miniaturas: 3 variantes, scoring de legibilidad a tamaño pequeño, sin barra que repite el título,
+    zona de duración libre, historial de variante usada.
+  - Subtítulos SRT subidos a YouTube (con tiempos reales de edge-tts).
+  - Capítulos con keywords, descripción optimizada, hashtag del ingrediente primero.
+  - Playlist automática por problema.
+  - Voz consistente (si una voz falla, se cambia para el resto del video).
+  - Contactos y contraseña leídos de variables de entorno (secrets).
+"""
 import asyncio
 import base64
-from datetime import datetime
+import io
 import json
 import os
 import random
 import re
 import sys
 import time
-import pandas as pd
-import io
+import unicodedata
+from datetime import datetime
+
 import numpy as np
-import urllib.parse
+import pandas as pd
+import pytz
+import requests
+import urllib3
+import edge_tts
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
@@ -21,16 +44,12 @@ from moviepy.editor import (
     CompositeVideoClip,
 )
 from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageFilter, ImageEnhance
-import requests
-import edge_tts
-import pytz
-import urllib3
 from rembg import remove
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ================================================================
-# CONFIGURACIÓN - VIDEOS LARGOS HERBOLARIA (HORIZONTAL 16:9) NIVEL 2
+# CONFIGURACIÓN
 # ================================================================
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
@@ -40,14 +59,17 @@ HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")
 CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
 CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
 
-WHATSAPP_NUMBER = "+52 3123395334"
-TELEFONO_NUMBER = "3123395334"
-TELEGRAM_BOT = "@alex_xanax_bot"
-TELEGRAM_PASSWORD = "A"
+# Recomendado: definirlos como secrets/variables en GitHub. Los valores por defecto
+# mantienen el comportamiento anterior, pero NO dejes una contraseña real en el código.
+WHATSAPP_NUMBER = os.getenv("WHATSAPP_NUMBER", "+52 3123395334")
+TELEFONO_NUMBER = os.getenv("TELEFONO_NUMBER", "3123395334")
+TELEGRAM_BOT = os.getenv("TELEGRAM_BOT", "@alex_xanax_bot")
+TELEGRAM_PASSWORD = os.getenv("TELEGRAM_PASSWORD", "A")
 
 ESTADO_FILE = "estado_largos_herbolaria.json"
 INGREDIENTES_LARGOS_FILE = "ingredientes_largos_usados.json"
 TITULOS_FILE = "titulos_largos_publicados.json"
+MINIATURAS_HIST_FILE = "miniaturas_largos_historial.json"
 
 EXCEL_FILE = "catalogo_xanax.xlsx"
 CATALOGO_INGREDIENTES = "catalogo_ingredientes.json"
@@ -64,96 +86,14 @@ PAUSA_ENTRE_SEGMENTOS = 0.5
 ACTIVAR_DISCLOSURE_IA = True
 DISCLOSURE_TEXT = "\n🤖 Contenido generado con inteligencia artificial (voz e imágenes) con fines educativos."
 
-# ⏰ VENTANA DE PUBLICACIÓN (hora CDMX)
-HORA_EXCLUIR_INICIO = 0
+HORA_EXCLUIR_INICIO = 0   # hora CDMX
 HORA_EXCLUIR_FIN = 4
 
 FUENTE = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-# ================================================================
-# 🛡️ PALABRAS PROHIBIDAS (Política de salud de YouTube)
-# ================================================================
-PALABRAS_PROHIBIDAS_TITULO = [
-    "cura", "curar", "cura milagrosa", "curación",
-    "milagrosa", "milagroso", "milagro", "milagros",
-    "sana", "sanar", "sanación", "sanarlo", "sanarte",
-    "erradica", "erradicar",
-    "desaparece por completo", "desaparecer por completo",
-    "remedio definitivo", "tratamiento definitivo",
-    "fin del", "fin de", "termina con", "acaba con",
-    "adiós al", "adiós definitivo", "adiós para siempre",
-    "nunca más", "para siempre",
-    "de raíz", "desde la raíz", "elimina de raíz",
-    "científicamente comprobado", "cientificamente comprobado",
-    "comprobado científicamente", "comprobado cientificamente",
-    "clínicamente probado", "clinicamente probado",
-    "avalado por médicos", "aprobado por médicos",
-    "recomendado por médicos", "avalado por doctores",
-    "aprobado por la FDA", "aprobado por fda",
-    "respaldado por estudios", "estudios lo confirman",
-    "eficacia probada", "efectividad probada",
-    "funciona siempre", "sin fallar", "sin excepciones",
-    "100% efectivo", "100 % efectivo", "cien por ciento efectivo",
-    "garantizado", "garantía de resultados",
-    "revolucionario", "breakthrough", "descubrimiento médico",
-    "innovación médica", "patentado médicamente",
-    "reemplaza", "reemplaza medicamentos", "reemplaza tu tratamiento",
-    "sustituye", "sustituye medicamentos", "sustituye tu tratamiento",
-    "no necesitas médico", "sin ir al médico", "olvida al doctor",
-    "mejor que las pastillas", "mejor que los medicamentos",
-    "olvida la medicina", "tira tus pastillas", "deja tu tratamiento",
-    "sin fármacos", "sin medicamentos", "sin receta médica",
-    "alternativa a medicamentos", "en vez de medicamentos",
-    "en 24 horas", "en un día", "hoy mismo",
-    "en 3 días", "en tres días",
-    "en 7 días", "en una semana", "en siete días",
-    "en un mes", "en 30 días",
-    "esta noche", "mañana mismo",
-    "al instante", "inmediatamente", "instantáneo", "instantanea",
-    "resultados inmediatos", "efecto inmediato",
-    "rápido y fácil", "exprés", "express",
-    "peligroso", "peligrosa", "mortal", "mortales",
-    "asesino silencioso", "asesina silenciosa",
-    "te está matando", "te mata", "te matará",
-    "veneno", "tóxico", "toxina mortal",
-    "muerte", "fatal", "terminal",
-    "urgente", "emergencia", "alerta roja",
-    "impactante", "shock", "shocking",
-    "revelación", "revelador",
-    "increíble", "asombroso", "alucinante",
-    "conspiración", "lo que te ocultan", "la verdad oculta",
-    "ellos no quieren que sepas", "te mienten",
-    "transforma tu cuerpo", "transforma tu vida",
-    "cambia tu vida", "nuevo tú", "nueva tú",
-    "antes y después", "resultados increíbles",
-    "pierde 10 kilos", "baja 10 kilos", "pierde peso rápido",
-    "quema grasa milagrosa", "quema grasa express",
-    "derrite la grasa", "elimina grasa localizada",
-    "adelgaza sin dieta", "sin dieta", "sin ejercicio",
-    "sin esfuerzo", "come lo que quieras",
-    "barriga plana", "abdomen plano en días",
-    "rejuvenece 20 años", "rejuvenece 10 años",
-    "eterna juventud", "juventud eterna", "inmortal",
-    "no vas a creer", "no lo vas a creer",
-    "te sorprenderá", "te dejará impactado",
-    "quedarás impactado", "quedarás asombrado",
-    "brutal", "bestial",
-    "top", "los 10 mejores", "los 5 peores",
-    "lo que nadie dice", "lo que nadie sabe",
-    "el mejor del mundo", "el peor del mundo",
-    "definitivo", "perfecto",
-    "cáncer", "cancer", "tumor", "tumores",
-    "VIH", "SIDA", "sida",
-    "alzheimer", "parkinson", "esclerosis",
-    "leucemia", "infarto", "derrame cerebral",
-    "ictus", "metástasis",
-    "solución", "elimina",
-    "limpiar tu cuerpo", "limpieza total del cuerpo",
-]
+ORDEN_SEGMENTOS = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2",
+                   "beneficio_3", "producto", "cta"]
 
-# ================================================================
-# 🔥 BASE DE DATOS DE KEYWORDS VIRALES
-# ================================================================
 KEYWORDS_VIRALES = {
     "generales_alto_volumen": [
         {"kw": "remedios naturales", "peso": 10},
@@ -214,9 +154,6 @@ TEMAS_VIRALES_SALUD = [
     {"tema": "secreto_ancestral", "keywords_cortas": ["secreto", "ancestral", "herbolaria mexicana", "tradición"], "keywords_largas": ["secreto de los abuelos", "sabiduría tradicional mexicana", "herbolaria que pocos conocen"], "ctr_potencial": 9.8},
 ]
 
-# ================================================================
-# 🎤 VOCES MEJORADAS (8 voces con diferentes estilos)
-# ================================================================
 VOCES_DISPONIBLES = [
     {"voz": "es-MX-JorgeNeural", "velocidad": "+10%", "estilo": "profesional México"},
     {"voz": "es-MX-DaliaNeural", "velocidad": "+10%", "estilo": "claro México"},
@@ -228,11 +165,255 @@ VOCES_DISPONIBLES = [
     {"voz": "es-MX-BeatrizNeural", "velocidad": "+11%", "estilo": "amigable México"},
 ]
 
-# ================================================================
-# ⚡ MOTOR DE TÍTULOS POWER (LARGOS NIVEL 2 - emojis + números + power words)
-# ================================================================
-EMOJIS_TITULO = ["🌿", "✨", "💪", "🔥", "", "", "🌱", "☀️", "🍵", "🦴", "", "⚡", "🌸", ""]
+TEMAS_PLAYLIST = [
+    ("circul", "circulación"), ("varice", "circulación"), ("sueno", "sueño y descanso"),
+    ("insomn", "sueño y descanso"), ("digest", "digestión"), ("gastri", "digestión"),
+    ("estomag", "digestión"), ("estrenimiento", "digestión"), ("estres", "estrés y ansiedad"),
+    ("ansied", "estrés y ansiedad"), ("nervio", "estrés y ansiedad"), ("defensa", "defensas"),
+    ("inmun", "defensas"), ("gripe", "defensas"), ("articul", "articulaciones y dolor"),
+    ("dolor", "articulaciones y dolor"), ("inflam", "articulaciones y dolor"),
+    ("energ", "energía y vitalidad"), ("cansancio", "energía y vitalidad"),
+    ("piel", "piel y cabello"), ("cabello", "piel y cabello"), ("colesterol", "corazón y colesterol"),
+    ("corazon", "corazón y colesterol"), ("presion", "corazón y colesterol"),
+    ("azucar", "azúcar y metabolismo"), ("peso", "azúcar y metabolismo"),
+    ("prostata", "salud masculina"), ("menopausia", "salud femenina"), ("higado", "hígado y riñones"),
+    ("rinon", "hígado y riñones"), ("memoria", "mente y memoria"), ("respir", "respiración"),
+]
 
+
+# ================================================================
+# UTILIDADES
+# ================================================================
+EMOJI_RE = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B50]")
+
+
+def normalizar(t):
+    """minúsculas, sin acentos/ñ, espacios simples."""
+    t = unicodedata.normalize("NFD", str(t or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def contar_emojis(t):
+    return len(EMOJI_RE.findall(t or ""))
+
+
+def quitar_emojis(t):
+    return re.sub(r"\s+", " ", EMOJI_RE.sub("", t or "").replace("\uFE0F", "")).strip()
+
+
+def sin_acentos_tag(t):
+    return normalizar(t)
+
+
+# ================================================================
+# 1) POLÍTICA DE SALUD (palabras completas, sin acentos)
+# ================================================================
+# BLOQUEO DURO: promesas de cura, garantías, urgencia médica, enfermedades graves,
+# sustitución de tratamientos, plazos de resultados.
+HARD_TERMS = [
+    "cura", "curar", "cura milagrosa", "curacion", "milagro", "milagros", "milagrosa",
+    "milagroso", "sanar", "sanacion", "sanarlo", "sanarte", "erradica", "erradicar",
+    "desaparece por completo", "desaparecer por completo", "remedio definitivo",
+    "tratamiento definitivo", "termina con", "acaba con", "adios", "nunca mas",
+    "para siempre", "de raiz", "desde la raiz", "elimina de raiz",
+    "cientificamente comprobado", "comprobado cientificamente", "clinicamente probado",
+    "avalado por medicos", "aprobado por medicos", "recomendado por medicos",
+    "avalado por doctores", "aprobado por la fda", "aprobado por fda",
+    "respaldado por estudios", "estudios lo confirman", "eficacia probada",
+    "efectividad probada", "funciona siempre", "sin fallar", "sin excepciones",
+    "100% efectivo", "100 % efectivo", "cien por ciento efectivo", "garantizado",
+    "garantia de resultados", "revolucionario", "breakthrough", "descubrimiento medico",
+    "innovacion medica", "patentado medicamente", "reemplaza", "sustituye",
+    "no necesitas medico", "sin ir al medico", "olvida al doctor",
+    "mejor que las pastillas", "mejor que los medicamentos", "olvida la medicina",
+    "tira tus pastillas", "deja tu tratamiento", "sin farmacos", "sin medicamentos",
+    "sin receta medica", "alternativa a medicamentos", "en vez de medicamentos",
+    "hoy mismo", "esta noche", "manana mismo", "al instante", "inmediatamente",
+    "instantaneo", "instantanea", "resultados inmediatos", "efecto inmediato",
+    "rapido y facil", "express", "peligroso", "peligrosa", "mortal", "mortales",
+    "asesino silencioso", "asesina silenciosa", "te esta matando", "te mata",
+    "te matara", "veneno", "toxico", "toxina mortal", "muerte", "fatal", "terminal",
+    "alerta roja", "conspiracion", "lo que te ocultan", "la verdad oculta",
+    "ellos no quieren que sepas", "te mienten", "transforma tu cuerpo",
+    "transforma tu vida", "cambia tu vida", "antes y despues", "resultados increibles",
+    "pierde peso rapido", "quema grasa milagrosa", "quema grasa express",
+    "derrite la grasa", "elimina grasa localizada", "adelgaza sin dieta", "sin dieta",
+    "sin ejercicio", "sin esfuerzo", "come lo que quieras", "barriga plana",
+    "rejuvenece 20 anos", "rejuvenece 10 anos", "eterna juventud", "juventud eterna",
+    "inmortal", "no vas a creer", "no lo vas a creer", "te sorprendera",
+    "te dejara impactado", "quedaras impactado", "quedaras asombrado",
+    "lo que nadie dice", "lo que nadie sabe", "el mejor del mundo", "el peor del mundo",
+    "cancer", "tumor", "tumores", "vih", "sida", "alzheimer", "parkinson",
+    "esclerosis", "leucemia", "infarto", "derrame cerebral", "ictus", "metastasis",
+    "solucion", "elimina", "limpiar tu cuerpo", "limpieza total del cuerpo",
+]
+
+# ADVERTENCIA SUAVE: clickbait / hipérbole. Penaliza el score, no bloquea.
+SOFT_TERMS = [
+    "top", "increible", "asombroso", "alucinante", "impactante", "shock", "shocking",
+    "brutal", "bestial", "perfecto", "definitivo", "urgente", "emergencia",
+    "revelacion", "revelador", "los 10 mejores", "los 5 peores", "fin de", "fin del",
+]
+
+
+def _compilar(terminos):
+    pats = sorted({normalizar(t) for t in terminos}, key=len, reverse=True)
+    return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(p) for p in pats) + r")(?!\w)")
+
+
+_RE_DURAS = _compilar(HARD_TERMS)
+_RE_SUAVES = _compilar(SOFT_TERMS)
+_RE_DURAS_EXTRA = [
+    re.compile(r"\ben \d+ (?:dias?|horas?|semanas?|meses)\b"),
+    re.compile(r"\b(?:pierde|baja|adelgaza)\s+\d+\s*(?:kilos?|kg)\b"),
+    re.compile(r"\b100\s*%"),
+]
+_RE_DESCARGO = re.compile(r"\bno (?:sustituye|reemplaza)[^.;:!?]*")
+
+
+def auditar_texto(texto, es_guion=False):
+    """Devuelve {'duras': [...], 'suaves': [...]} con palabras COMPLETAS detectadas.
+    Si es_guion=True, ignora los descargos tipo 'no sustituye la consulta médica'."""
+    tn = normalizar(texto)
+    if es_guion:
+        tn = _RE_DESCARGO.sub(" ", tn)
+    duras = sorted(set(_RE_DURAS.findall(tn)))
+    for rx in _RE_DURAS_EXTRA:
+        duras += [m if isinstance(m, str) else m[0] for m in rx.findall(tn)]
+    suaves = sorted(set(_RE_SUAVES.findall(tn)))
+    return {"duras": duras, "suaves": suaves}
+
+
+def texto_seguro(texto, es_guion=False):
+    return not auditar_texto(texto, es_guion)["duras"]
+
+
+# ================================================================
+# 2) AUTOCOMPLETADO REAL DE YOUTUBE (gratis, sin cuota)
+# ================================================================
+AC_CACHE_FILE = "autocompletado_cache.json"
+AC_CACHE_DIAS = 7
+
+
+def _cargar_cache():
+    try:
+        with open(AC_CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _guardar_cache(c):
+    try:
+        with open(AC_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(c, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def _ac_request(q):
+    r = requests.get(
+        "https://suggestqueries.google.com/complete/search",
+        params={"client": "firefox", "ds": "yt", "q": q, "hl": "es", "gl": "mx"},
+        headers={"User-Agent": "Mozilla/5.0"}, timeout=8,
+    )
+    r.raise_for_status()
+    data = json.loads(r.content.decode("utf-8", errors="ignore"))
+    return [s for s in data[1] if isinstance(s, str)]
+
+
+def obtener_sugerencias(ingrediente, max_resultados=25, usar_alfabeto=True, tiempo_max=40):
+    """Frases reales que la gente busca en YouTube México para este ingrediente.
+    Devuelve [{'frase': str, 'score': float}] ordenadas. Si falla la red -> []."""
+    ing = str(ingrediente or "").lower().strip()
+    if not ing:
+        return []
+    semillas = [(f"para qué sirve {ing}", 1.0), (f"{ing} beneficios", 1.0),
+                (f"{ing} propiedades", 1.0), (f"{ing} té", 0.9),
+                (f"cómo tomar {ing}", 0.9), (f"{ing} para", 0.9),
+                (f"cómo se usa {ing}", 0.8), (f"{ing} contraindicaciones", 0.6),
+                (f"remedios con {ing}", 0.7)]
+    if usar_alfabeto:
+        semillas += [(f"{ing} {l}", 0.4) for l in "abcdefghijlmnoprstuv"]
+
+    cache = _cargar_cache()
+    ahora = time.time()
+    t0 = ahora
+    puntaje, tokens = {}, [t for t in normalizar(ing).split() if len(t) > 3] or [normalizar(ing)]
+    fallos = 0
+    for semilla, peso in semillas:
+        if time.time() - t0 > tiempo_max or fallos >= 4:
+            break
+        entrada = cache.get(semilla)
+        if entrada and ahora - entrada.get("t", 0) < AC_CACHE_DIAS * 86400:
+            res = entrada["res"]
+        else:
+            try:
+                res = _ac_request(semilla)
+                cache[semilla] = {"t": ahora, "res": res}
+                time.sleep(0.15)
+            except Exception:
+                fallos += 1
+                continue
+        for rank, frase in enumerate(res):
+            fn = normalizar(frase)
+            if len(fn) > 70 or not re.match(r"^[a-z0-9\s]+$", fn):
+                continue
+            if not any(tok in fn for tok in tokens):
+                continue
+            if not texto_seguro(frase):
+                continue
+            puntaje[fn] = puntaje.get(fn, 0.0) + peso / (rank + 1)
+            puntaje.setdefault("__orig__" + fn, frase.lower().strip())
+    _guardar_cache(cache)
+    out = []
+    for k, v in puntaje.items():
+        if k.startswith("__orig__"):
+            continue
+        out.append({"frase": puntaje.get("__orig__" + k, k), "score": round(v, 3)})
+    out.sort(key=lambda x: x["score"], reverse=True)
+    return out[:max_resultados]
+
+
+# ================================================================
+# 3) TÍTULOS: familia, tipo, candidatos, SCORE 0-100
+# ================================================================
+EMOJIS_TITULO = ["🌿", "✨", "🌱", "🍃", "🌼", "💚", "☀️", "🍵", "⚡", "🔥", "💪"]  # neutros / botánicos
+PALABRAS_PODER = ["secreto", "poder", "verdad", "oculto", "nadie", "pocos", "abuelo", "abuela",
+                  "descubre", "mito", "razones", "ancestral", "tradicion", "sabias"]
+
+# {Ing} = capitalizada (inicio), {ing} = tal cual (mitad), {prob} = problema corto
+FORMULAS_TITULO = {
+    "busqueda": [
+        "{Ing}: para qué sirve y cómo usarlo {e}",
+        "Para qué sirve {ing}: usos y beneficios {e}",
+        "{Ing}: propiedades y beneficios tradicionales {e}",
+        "Cómo tomar {ing} correctamente {e}",
+        "Beneficios de {ing} para {prob} {e}",
+        "{Ing}: qué es y cómo se usa en la herbolaria {e}",
+    ],
+    "curiosidad": [
+        "{Ing}: {num} cosas que nadie te explicó {e}",
+        "¿Por qué tu abuela usaba {ing}? {e}",
+        "El poder oculto de {ing} para {prob} {e}",
+        "{num} secretos de {ing} que pocos conocen {e}",
+        "¿Qué pasa si tomas {ing} a diario? {e}",
+        "{Ing}: ¿mito o tradición real? {e}",
+        "Lo que los abuelos sabían de {ing} {e}",
+    ],
+    "problema_solucion": [
+        "{prob_cap}: así apoya {ing} tu bienestar {e}",
+        "Si tienes {prob}, conoce {ing} {e}",
+        "{Ing} para {prob}: lo que dice la tradición {e}",
+        "{Ing}: aliado natural para {prob} {e}",
+        "¿{prob_cap}? Esto hace {ing} en tu cuerpo {e}",
+    ],
+}
+
+
+# Fórmulas del bot original (POWER y VARIADAS): ahora alimentan el pool de candidatos,
+# que luego se filtra por política y se puntúa. e1 se deja vacío para respetar "1 emoji máximo".
 FORMULAS_POWER_LARGO = [
     "{e1} {ingrediente}: {num} secretos para {problema} que pocos conocen {e2}",
     "{e1} ¿{problema_cap}? Esto es lo que {ingrediente} hace en tu cuerpo {e2}",
@@ -248,9 +429,6 @@ FORMULAS_POWER_LARGO = [
     "{e1} {ingrediente} por dentro: {num} efectos en tu bienestar {e2}",
 ]
 
-# ================================================================
-# 🎯 MOTOR DE FÓRMULAS DE TÍTULOS VARIADAS (ANTI-REPETICIÓN)
-# ================================================================
 FORMULAS_TITULOS_VARIADAS = {
     "busqueda": [
         "Para qué sirve {ingrediente} en remedios naturales",
@@ -308,24 +486,217 @@ FORMULAS_TITULOS_VARIADAS = {
     ],
 }
 
+
+def _problema_corto(problema, maxlen=24):
+    ps = [p.strip() for p in str(problema or "").split(",") if p.strip()]
+    prob = ps[0].lower() if ps else "tu bienestar"
+    if len(prob) > maxlen:
+        prob = prob[:maxlen].rsplit(" ", 1)[0]
+    return prob
+
+
+def firma_titulo(t):
+    return " ".join(re.findall(r"\w+", normalizar(quitar_emojis(t)))[:3])
+
+
+def familia_titulo(t):
+    tn = normalizar(quitar_emojis(t))
+    if tn.startswith("para que sirve"):
+        return "para_que_sirve"
+    if "secreto" in tn:
+        return "secretos"
+    if "?" in t or t.strip().startswith("¿"):
+        return "pregunta"
+    if "beneficios" in tn:
+        return "beneficios"
+    if re.search(r"como (usar|tomar|preparar)", tn):
+        return "como_usar"
+    if re.search(r"abuel|tradicion|ancestral", tn):
+        return "tradicional"
+    if re.search(r"verdad|mito|nadie", tn):
+        return "verdad"
+    if "poder oculto" in tn:
+        return "poder"
+    if re.search(r"razones|cosas que", tn):
+        return "lista"
+    return "otro"
+
+
+def tipo_titulo(t):
+    tn = normalizar(quitar_emojis(t))
+    if re.search(r"para que sirve|beneficios de|como tomar|como usar|propiedades|que es ", tn):
+        return "busqueda"
+    if re.search(r"aliado natural|asi apoya|si tienes|lo que dice la tradicion|esto hace", tn):
+        return "problema_solucion"
+    return "curiosidad"
+
+
+def _limpiar_titulo(t):
+    t = re.sub(r"#\w+", "", t or "")
+    t = re.sub(r"\s+", " ", t).strip()
+    return t[:1].upper() + t[1:]
+
+
+def ajustar_titulo(t):
+    """Limpia hashtags y asegura 1 emoji si cabe. No trunca con '...'."""
+    t = _limpiar_titulo(t)
+    if t and contar_emojis(t) == 0 and len(t) <= 66:
+        t = f"{t} {random.choice(EMOJIS_TITULO)}"
+    return t
+
+
+def generar_candidatos_codigo(ingrediente, problema):
+    ing = str(ingrediente).strip()
+    ing_cap = ing[:1].upper() + ing[1:]
+    prob = _problema_corto(problema)
+    cands = []
+    for formulas in FORMULAS_TITULO.values():
+        for f in formulas:
+            cands.append(_limpiar_titulo(f.format(
+                ing=ing.lower() if len(ing.split()) == 1 else ing, Ing=ing_cap, prob=prob,
+                prob_cap=prob[:1].upper() + prob[1:], num=random.choice([3, 4, 5, 7]),
+                e=random.choice(EMOJIS_TITULO))))
+    prob_c = prob[:1].upper() + prob[1:]
+    for f in FORMULAS_POWER_LARGO:
+        cands.append(_limpiar_titulo(f.format(
+            e1="", e2=random.choice(EMOJIS_TITULO), ingrediente=ing, problema=prob,
+            problema_cap=prob_c, num=random.choice([3, 4, 5, 7]))))
+    for formulas in FORMULAS_TITULOS_VARIADAS.values():
+        for f in formulas:
+            cands.append(_limpiar_titulo(f.format(ingrediente=ing, problema=prob)))
+    return cands
+
+
+def puntuar_titulo(titulo, ingrediente, sugerencias=None, historial=None):
+    """Devuelve (score 0-100, detalle). Score -100 = rechazado."""
+    t = _limpiar_titulo(titulo)
+    historial = historial or []
+    tn = normalizar(quitar_emojis(t))
+    ing_n = normalizar(ingrediente)
+    det = {}
+
+    aud = auditar_texto(t)
+    if aud["duras"]:
+        return -100, {"rechazo": f"palabra prohibida: {aud['duras']}"}
+    if len(t) > 70:
+        return -100, {"rechazo": f"largo ({len(t)}>70)"}
+    if len(t) < 25:
+        return -100, {"rechazo": "muy corto"}
+
+    recientes = historial[-6:]
+    fam = familia_titulo(t)
+    if sum(1 for x in recientes if familia_titulo(x) == fam) >= 2:
+        return -100, {"rechazo": f"familia saturada ({fam})"}
+    if firma_titulo(t) in [firma_titulo(x) for x in recientes]:
+        return -100, {"rechazo": "firma repetida"}
+    pc = set(re.findall(r"\w+", tn))
+    for h in historial:
+        ph = set(re.findall(r"\w+", normalizar(quitar_emojis(h))))
+        if pc and ph and len(pc & ph) / len(pc | ph) > 0.8:
+            return -100, {"rechazo": "casi idéntico a uno publicado"}
+
+    pts = 0
+    # keyword principal temprana
+    idx = tn.find(ing_n)
+    toks = [x for x in ing_n.split() if len(x) > 3]
+    if idx != -1 and idx + len(ing_n) <= 45:
+        det["keyword"] = 25
+    elif toks and any(x in tn[:40] for x in toks):
+        det["keyword"] = 12
+    pts += det.get("keyword", 0)
+    # longitud
+    n = len(t)
+    det["longitud"] = 15 if 50 <= n <= 62 else 8 if 44 <= n <= 70 else 0
+    pts += det["longitud"]
+    # brecha de curiosidad
+    if "?" in t or any(pw in tn for pw in PALABRAS_PODER):
+        det["curiosidad"] = 10
+        pts += 10
+    # número
+    if re.search(r"\b\d{1,2}\b", t):
+        det["numero"] = 8
+        pts += 8
+    # emoji (máximo uno)
+    ne = contar_emojis(t)
+    det["emoji"] = 8 if ne == 1 else (-6 if ne > 1 else 0)
+    pts += det["emoji"]
+    # coincidencia con autocompletado real
+    for s in (sugerencias or [])[:8]:
+        sn = normalizar(s["frase"])
+        for tok in ing_n.split():
+            sn = re.sub(r"(?<!\w)" + re.escape(tok) + r"(?!\w)", " ", sn)
+        resto = re.sub(r"\s+", " ", sn).strip()
+        if len(resto) >= 3 and resto in tn:
+            det["autocompletado"] = 10
+            pts += 10
+            break
+    # novedad: familia y tipo poco usados
+    if sum(1 for x in recientes if familia_titulo(x) == fam) == 0:
+        det["familia_nueva"] = 10
+        pts += 10
+    usos_tipo = sum(1 for x in recientes if tipo_titulo(x) == tipo_titulo(t))
+    det["rotacion_tipo"] = 10 if usos_tipo == 0 else 5 if usos_tipo == 1 else -5 if usos_tipo >= 3 else 0
+    pts += det["rotacion_tipo"]
+    # sin truncados
+    if "..." in t or "…" in t:
+        pts -= 20
+    else:
+        pts += 4
+    # clickbait suave
+    if aud["suaves"]:
+        det["suaves"] = -10 * min(2, len(aud["suaves"]))
+        pts += det["suaves"]
+    return max(1, min(100, pts)), det
+
+
+def elegir_mejor_titulo(candidatos_ia, ingrediente, problema, sugerencias, historial, verbose=True):
+    pool, vistos = [], set()
+    for c in (candidatos_ia or []):
+        c = ajustar_titulo(c)
+        if c and c.lower() not in vistos:
+            vistos.add(c.lower())
+            pool.append((c, "IA"))
+    for c in generar_candidatos_codigo(ingrediente, problema):
+        c = ajustar_titulo(c)
+        if c.lower() not in vistos:
+            vistos.add(c.lower())
+            pool.append((c, "fórmula"))
+    evaluados = []
+    for t, origen in pool:
+        s, det = puntuar_titulo(t, ingrediente, sugerencias, historial)
+        evaluados.append((s, t, origen, det))
+    validos = [x for x in evaluados if x[0] > 0]
+    if verbose:
+        print(f"   🧪 {len(pool)} candidatos de título | {len(validos)} válidos")
+    if not validos:
+        ing = str(ingrediente)
+        return f"{ing[:1].upper() + ing[1:]}: tradición y bienestar 🌿", 0, {}
+    validos.sort(key=lambda x: x[0] + random.uniform(0, 1.5), reverse=True)
+    if verbose:
+        for s, t, o, _ in validos[:3]:
+            print(f"      [{s:>3}] ({o}) {t}")
+    s, t, o, det = validos[0]
+    return t, s, det
+
+
 # ================================================================
-# 🏷️ TAGS DE VOLUMEN REAL (48 síntomas + mega volumen) - NIVEL 2
+# 4) TAGS EN CAPAS
 # ================================================================
 TAGS_MEGA_VOLUMEN = [
-    "remedios naturales", "remedios caseros", "plantas medicinales",
-    "hierbas medicinales", "medicina natural", "salud natural",
-    "herbolaria mexicana", "beneficios de las plantas", "vida saludable",
-    "salud y bienestar", "nutricion natural", "suplementos naturales",
-    "remedios de la abuela", "herbolaria tradicional",
+    "remedios naturales", "remedios caseros", "plantas medicinales", "hierbas medicinales",
+    "medicina natural", "salud natural", "herbolaria mexicana", "herbolaria",
+    "beneficios de las plantas", "vida saludable", "salud y bienestar",
+    "remedios de la abuela", "medicina tradicional", "bienestar natural",
 ]
 
 TAGS_SINTOMAS_VOLUMEN = {
-    "circul": ["circulación sanguínea", "mejorar la circulación", "remedios para la circulación"],
+    "circul": ["circulación sanguínea", "mejorar la circulación"],
     "presión": ["presión alta remedios", "bajar la presión naturalmente"],
     "insomnio": ["insomnio remedios", "dormir mejor naturalmente"],
     "sueño": ["dormir bien remedios", "insomnio remedios naturales"],
     "digest": ["mejorar la digestión", "digestión pesada remedios"],
     "gastritis": ["gastritis remedios naturales", "estómago sano remedios"],
+    "estómago": ["dolor de estómago remedios", "estómago inflamado"],
     "colesterol": ["colesterol alto remedios", "bajar el colesterol naturalmente"],
     "energ": ["energía natural", "fatiga remedios naturales"],
     "cansancio": ["cansancio crónico remedios", "energía vital"],
@@ -370,46 +741,233 @@ TAGS_SINTOMAS_VOLUMEN = {
     "olor": ["mal olor remedios", "desodorante natural"],
 }
 
+# Temas médicos sensibles: se permiten pocos tags y siempre en formato "remedios/bienestar"
+SENSIBLES = ["diabetes", "artritis", "presion", "colesterol", "azucar", "glucosa",
+             "tiroides", "hipertension", "gastritis", "menopausia", "prostata"]
+
+
+def clasificar_ingrediente(ingrediente):
+    il = ingrediente.lower()
+    grupos = [
+        ("compuesto", ["mentol", "alcanfor", "eucaliptol", "terpeno", "extracto", "aceite esencial", "resina"]),
+        ("lipido", ["omega", "dha", "epa", "ácido graso", "aceite de pescado", "krill", "linaza", "chía"]),
+        ("proteina", ["colágeno", "colageno", "proteína", "proteina", "aminoácido", "whey", "creatina", "bcaa", "arginina", "glicina"]),
+        ("micronutriente", ["vitamina", "vit ", "biotina", "magnesio", "zinc", "hierro", "calcio", "potasio",
+                            "selenio", "cromo", "yodo", "cobre", "manganeso", "ácido fólico"]),
+        ("fruta", ["naranja", "limón", "limon", "fresa", "manzana", "plátano", "piña", "mango", "papaya", "arándano",
+                   "uva", "sandía", "kiwi", "guayaba", "granada", "cereza", "ciruela", "durazno", "tamarindo", "coco", "jitomate"]),
+        ("probiotico", ["hongo", "reishi", "shiitake", "melena de león", "cordyceps", "levadura", "probiótico", "lactobacillus"]),
+        ("raiz", ["cúrcuma", "curcuma", "jengibre", "ginseng", "maca", "ashwagandha", "valeriana", "regaliz",
+                  "alcachofa", "betabel", "remolacha", "camote", "raíz", "raiz"]),
+    ]
+    for tipo, claves in grupos:
+        if any(k in il for k in claves):
+            return tipo
+    return "planta"
+
+
+_TAG_OK = re.compile(r"^[a-záéíóúüñ0-9\s]+$")
+
+
+def construir_tags(ingrediente, problema, titulo="", sugerencias=None, tema_viral=None,
+                   estricto=False, presupuesto=480):
+    """Tags en capas, ordenados por prioridad. estricto=True limita a 30 chars/tag
+    (modo seguro que se usa si YouTube rechaza los tags)."""
+    max_len = 30 if estricto else 40
+    ing = str(ingrediente).lower().strip()
+    tipo = clasificar_ingrediente(ing)
+    probs = [p.strip().lower() for p in str(problema or "").split(",") if p.strip()][:4]
+
+    exacto = [ing]
+    especificos = [f"{ing} beneficios", f"beneficios de {ing}", f"{ing} propiedades",
+                   f"para qué sirve {ing}", f"cómo usar {ing}", f"{ing} remedios naturales",
+                   f"{ing} uso tradicional"]
+    extras_tipo = {
+        "planta": [f"té de {ing}", f"infusión de {ing}", f"{ing} medicinal", f"planta {ing}"],
+        "raiz": [f"raíz de {ing}", f"{ing} medicinal", f"té de {ing}"],
+        "fruta": [f"fruta {ing}", f"jugo de {ing}", f"{ing} natural"],
+        "compuesto": [f"{ing} natural", f"extracto {ing}"],
+        "lipido": [f"suplemento {ing}", "omega 3 natural"],
+        "proteina": [f"suplemento {ing}", f"{ing} natural"],
+        "micronutriente": [f"suplemento {ing}", f"{ing} natural"],
+        "probiotico": [f"suplemento {ing}", f"{ing} natural"],
+    }
+    especificos += extras_tipo.get(tipo, [])
+    prob_txt = " ".join(probs)
+    esp_prob = []
+    for p in probs:
+        esp_prob += [f"{ing} para {p}", f"remedios para {p}", f"{p} remedios naturales", p]
+    for clave, frases in TAGS_SINTOMAS_VOLUMEN.items():
+        if clave in prob_txt:
+            esp_prob += frases[:2]
+    generales = list(TAGS_MEGA_VOLUMEN)
+    if tema_viral:
+        generales = [k.lower() for k in tema_viral.get("keywords_cortas", [])[:2]] + generales
+    cola = [s["frase"] for s in (sugerencias or [])[:20]]
+    variantes = []
+    for t in (exacto + especificos[:8] + esp_prob[:4]):
+        sa = sin_acentos_tag(t)
+        if sa != t:
+            variantes.append(sa)
+    variantes += [f"te de {sin_acentos_tag(ing)}", f"{sin_acentos_tag(ing)} propiedades"]
+    if titulo:
+        variantes += [p for p in re.findall(r"[a-záéíóúüñ]+", titulo.lower()) if 5 < len(p) <= 20][:3]
+
+    orden = (exacto + especificos[:4] + generales[:3] + esp_prob[:6] + cola[:6] + especificos[4:]
+             + esp_prob[6:] + variantes + generales[3:] + cola[6:])
+
+    out, vistos, total, sensibles = [], set(), 0, 0
+    for tag in orden:
+        tg = re.sub(r"\s+", " ", str(tag).strip().lower())
+        if tg in vistos or not (3 <= len(tg) <= max_len) or not _TAG_OK.match(tg):
+            continue
+        if not texto_seguro(tg):
+            continue
+        if any(s in normalizar(tg) for s in SENSIBLES):
+            if sensibles >= 3:
+                continue
+            sensibles += 1
+        costo = len(tg) + (2 if " " in tg else 0) + 1  # comillas implícitas + coma
+        if total + costo > presupuesto:
+            continue
+        out.append(tg)
+        vistos.add(tg)
+        total += costo
+        if len(out) >= 40:
+            break
+    if len(out) < 3:
+        out = ["remedios naturales", "salud natural", ing[:max_len]]
+    return ", ".join(out)
+
+
+def generar_tags_emergencia(ingrediente):
+    ing = str(ingrediente).lower().strip()
+    base = [ing, f"{ing} beneficios", "remedios naturales", "remedios caseros", "salud natural",
+            "medicina natural", "herbolaria mexicana", "plantas medicinales", "hierbas medicinales"]
+    out = [t for t in base if 3 <= len(t) <= 30 and _TAG_OK.match(t)]
+    return ", ".join(out)
+
+
 # ================================================================
-# 🧠 ESTADO Y ANTI-REPETICIÓN
+# 5) GANCHOS DE MINIATURA (complementan el título, no lo copian)
 # ================================================================
-def cargar_estado():
+GANCHOS_MINIATURA = {
+    "busqueda": ["GUÍA COMPLETA", "USO TRADICIONAL", "ASÍ SE USA", "LO ESENCIAL"],
+    "curiosidad": ["¿MITO O REAL?", "POCOS LO SABEN", "SABIDURÍA ANCESTRAL", "TE LO EXPLICO"],
+    "problema_solucion": ["ALIADO NATURAL", "APOYO TRADICIONAL", "TRADICIÓN VIVA", "BIENESTAR DIARIO"],
+}
+
+
+def elegir_gancho_miniatura(titulo):
+    tn_words = set(re.findall(r"\w+", normalizar(quitar_emojis(titulo))))
+    tipo = tipo_titulo(titulo)
+    orden_tipos = [tipo] + [t for t in GANCHOS_MINIATURA if t != tipo]
+    mejor, mejor_sol = None, 99
+    for i, tp in enumerate(orden_tipos):
+        for g in GANCHOS_MINIATURA[tp]:
+            if not texto_seguro(g):
+                continue
+            sol = len(set(re.findall(r"\w+", normalizar(g))) & tn_words) + i * 0.5
+            if sol < mejor_sol or (sol == mejor_sol and random.random() < 0.4):
+                mejor, mejor_sol = g, sol
+    return mejor or "TRADICIÓN VIVA"
+
+
+# Compatibilidad con el bot original
+PALABRAS_PROHIBIDAS_TITULO = sorted(set(HARD_TERMS + SOFT_TERMS))
+
+
+def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None, sugerencias=None):
+    return construir_tags(ingrediente, problema, titulo, sugerencias, tema_viral)
+
+
+def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
+    return construir_tags(ingrediente, problema, "", None, tema_viral)
+
+
+def validar_tags_youtube(tags_str, max_len=40, presupuesto=495):
+    """Validación final de tags (caracteres, longitud y presupuesto de 500)."""
+    if not tags_str:
+        return "remedios naturales, salud natural, bienestar"
+    vistos, out, total = set(), [], 0
+    for tag in [t.strip().lower() for t in tags_str.split(",") if t.strip()]:
+        tg = re.sub(r"\s+", " ", tag)
+        if tg in vistos or not (2 <= len(tg) <= max_len) or not _TAG_OK.match(tg) or "..." in tg:
+            continue
+        costo = len(tg) + (2 if " " in tg else 0) + 1
+        if total + costo > presupuesto:
+            continue
+        vistos.add(tg)
+        out.append(tg)
+        total += costo
+    if len(out) < 3:
+        out = ["remedios naturales", "salud natural", "bienestar"]
+    return ", ".join(out[:40])
+
+
+# ================================================================
+# UTILIDADES ASYNC
+# ================================================================
+def _run(coro):
+    loop = asyncio.new_event_loop()
     try:
-        with open(ESTADO_FILE, "r", encoding="utf-8") as f: return json.load(f)
-    except: return {"publicaciones_hoy": 0, "fecha": None, "ultima_publicacion": None}
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+# ================================================================
+# ESTADO Y ANTI-REPETICIÓN
+# ================================================================
+def _leer_json(ruta, defecto):
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return defecto
+
+
+def _escribir_json(ruta, data):
+    with open(ruta, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def cargar_estado():
+    return _leer_json(ESTADO_FILE, {"publicaciones_hoy": 0, "fecha": None, "ultima_publicacion": None})
+
 
 def guardar_estado(estado):
-    with open(ESTADO_FILE, "w", encoding="utf-8") as f: json.dump(estado, f, indent=2, ensure_ascii=False)
+    _escribir_json(ESTADO_FILE, estado)
+
 
 def cargar_ingredientes_largos_usados():
-    try:
-        with open(INGREDIENTES_LARGOS_FILE, "r", encoding="utf-8") as f: return json.load(f).get("ingredientes", [])
-    except: return []
+    d = _leer_json(INGREDIENTES_LARGOS_FILE, {})
+    return d.get("ingredientes", []) if isinstance(d, dict) else []
+
 
 def guardar_ingrediente_largo_usado(ingrediente, producto):
-    data = {"ingredientes": cargar_ingredientes_largos_usados()}
+    lista = cargar_ingredientes_largos_usados()
     entry = f"{ingrediente}|{producto}"
-    if entry not in data["ingredientes"]:
-        data["ingredientes"].append(entry)
-    if len(data["ingredientes"]) > 80:
-        data["ingredientes"] = data["ingredientes"][-80:]
-    with open(INGREDIENTES_LARGOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    if entry not in lista:
+        lista.append(entry)
+    _escribir_json(INGREDIENTES_LARGOS_FILE, {"ingredientes": lista[-80:]})
+
 
 def reiniciar_ingredientes_largos():
-    with open(INGREDIENTES_LARGOS_FILE, "w", encoding="utf-8") as f: json.dump({"ingredientes": []}, f)
+    _escribir_json(INGREDIENTES_LARGOS_FILE, {"ingredientes": []})
+
 
 def cargar_titulos():
-    try:
-        with open(TITULOS_FILE, "r", encoding="utf-8") as f: return json.load(f)
-    except: return {"titulos": []}
+    d = _leer_json(TITULOS_FILE, {"titulos": []})
+    return d.get("titulos", []) if isinstance(d, dict) else []
+
 
 def guardar_titulo(titulo):
-    data = cargar_titulos()
-    if titulo not in data["titulos"]:
-        data["titulos"].append(titulo)
-        if len(data["titulos"]) > 100:
-            data["titulos"] = data["titulos"][-100:]
-        with open(TITULOS_FILE, "w", encoding="utf-8") as f: json.dump(data, f, indent=2, ensure_ascii=False)
+    lista = cargar_titulos()
+    if titulo not in lista:
+        lista.append(titulo)
+    _escribir_json(TITULOS_FILE, {"titulos": lista[-100:]})
+
 
 def deberia_publicar_ahora(estado):
     tz = pytz.timezone("America/Mexico_City")
@@ -423,24 +981,24 @@ def deberia_publicar_ahora(estado):
         return False
 
     forzar = os.getenv("FORZAR_PUBLICACION", "0") == "1"
-    if not forzar:
-        hora_actual = ahora.hour
-        if HORA_EXCLUIR_INICIO <= hora_actual < HORA_EXCLUIR_FIN:
-            print(f"🌙 Hora de madrugada ({hora_actual}h CDMX). No publico entre {HORA_EXCLUIR_INICIO}:00 y {HORA_EXCLUIR_FIN}:00 para evitar bajo alcance.")
-            return False
+    if not forzar and HORA_EXCLUIR_INICIO <= ahora.hour < HORA_EXCLUIR_FIN:
+        print(f"🌙 Madrugada ({ahora.hour}h CDMX). No publico entre {HORA_EXCLUIR_INICIO}:00 y {HORA_EXCLUIR_FIN}:00.")
+        return False
 
     ultima = estado.get("ultima_publicacion")
-    if ultima:
+    if ultima and not forzar:
         diff = (ahora - datetime.fromisoformat(ultima)).total_seconds() / 3600
         intervalo = random.uniform(INTERVALO_MIN_HORAS, INTERVALO_MAX_HORAS)
         if diff < intervalo:
             print(f"⏳ Esperando {intervalo:.1f}h (han pasado {diff:.1f}h).")
             return False
-    retraso = random.randint(0, RETRASO_MAX_MINUTOS * 60)
-    if retraso > 0:
-        print(f"⏳ Retraso aleatorio: {retraso//60} min...")
-        time.sleep(retraso)
+    if not forzar:
+        retraso = random.randint(0, RETRASO_MAX_MINUTOS * 60)
+        if retraso > 0:
+            print(f"⏳ Retraso aleatorio: {retraso // 60} min...")
+            time.sleep(retraso)
     return True
+
 
 def seleccionar_producto_e_ingrediente_largo():
     df = pd.read_excel(EXCEL_FILE, sheet_name="Productos")
@@ -451,23 +1009,27 @@ def seleccionar_producto_e_ingrediente_largo():
     for _ in range(60):
         producto = df.sample(1).iloc[0].to_dict()
         ingredientes = [i.strip() for i in str(producto["ingredientes_clave"]).split(",") if i.strip()]
-        if not ingredientes: continue
+        if not ingredientes:
+            continue
         ingrediente = random.choice(ingredientes)
         if f"{ingrediente}|{producto['nombre']}" not in usados:
             print(f"✅ Par elegido: {ingrediente} → {producto['nombre']}")
             return producto, ingrediente
 
-    print("🔄 Pool de ingredientes agotado en largos. Reiniciando historial...")
+    print("🔄 Pool de ingredientes agotado. Reiniciando historial...")
     reiniciar_ingredientes_largos()
     producto = df.sample(1).iloc[0].to_dict()
     ingredientes = [i.strip() for i in str(producto["ingredientes_clave"]).split(",") if i.strip()]
     return producto, random.choice(ingredientes)
 
+
 def cargar_json_catalogo(ruta):
     try:
-        with open(ruta, "r", encoding="utf-8") as f: return json.load(f)
+        with open(ruta, "r", encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return []
+
 
 def obtener_info_ingrediente_catalogo(ingrediente):
     for item in cargar_json_catalogo(CATALOGO_INGREDIENTES):
@@ -477,17 +1039,21 @@ def obtener_info_ingrediente_catalogo(ingrediente):
             for clave in ["descripcion", "beneficios", "propiedades", "formas_de_uso", "caracteristicas_visuales", "datos_curiosos"]:
                 val = item.get(clave)
                 if val:
-                    if isinstance(val, list): val = ", ".join(map(str, val))
+                    if isinstance(val, list):
+                        val = ", ".join(map(str, val))
                     partes.append(f"{clave}: {val}")
             return " | ".join(partes)
     return ""
 
+
 def obtener_curiosidad_catalogo(ingrediente):
     curios = cargar_json_catalogo(CATALOGO_CURIOSIDADES)
-    if not curios: return ""
+    if not curios:
+        return ""
     relacionadas = [c for c in curios if ingrediente.lower() in json.dumps(c, ensure_ascii=False).lower()]
     elegida = random.choice(relacionadas) if relacionadas else random.choice(curios)
     return f"{elegida.get('titulo', '')} {elegida.get('dato_curioso', '')}".strip()
+
 
 def obtener_keywords_aleatorias_virales(cantidad=5):
     todas = []
@@ -503,381 +1069,19 @@ def obtener_keywords_aleatorias_virales(cantidad=5):
         todas.remove(elegida)
     return seleccionadas
 
-# ================================================================
-# ⚡ ANTI-REPETICIÓN: FIRMA + FAMILIA SATURADA + EXISTENCIA
-# ================================================================
-def firma_titulo(t):
-    """Primeras 3 palabras del título en lowercase."""
-    return " ".join(re.findall(r'\w+', t.lower())[:3])
-
-def familia_titulo(t):
-    """Detecta la familia/patrón del título."""
-    tl = t.lower()
-    if tl.startswith("para qué sirve") or tl.startswith("para que sirve"):
-        return "para_que_sirve"
-    if "secreto ancestral" in tl or tl.startswith("el secreto"):
-        return "secreto_ancestral"
-    if tl.startswith("¿"):
-        return "pregunta"
-    if "beneficios" in tl:
-        return "beneficios"
-    if "cómo usar" in tl or "como usar" in tl:
-        return "como_usar"
-    if "abuelos" in tl or "tradición" in tl or "tradicional" in tl:
-        return "tradicional"
-    if "verdad" in tl or "nadie te" in tl:
-        return "verdad"
-    return "power_otro"
-
-def patron_saturado(titulo_candidato, ventana=6, max_rep=2):
-    """Bloquea familias de título que ya se usaron 2+ veces en los últimos 6 videos."""
-    titulos = cargar_titulos().get("titulos", [])[-ventana:]
-    fam = familia_titulo(titulo_candidato)
-    conteo = sum(1 for t in titulos if familia_titulo(t) == fam)
-    return conteo >= max_rep
-
-def titulo_ya_existe(titulo_candidato):
-    """Verifica si un título (o uno muy similar) ya fue publicado."""
-    titulos_publicados = cargar_titulos().get("titulos", [])
-    candidato_lower = titulo_candidato.lower().strip()
-    
-    # Verificar firma (primeras 3 palabras) en últimos 6 videos
-    firmas_recientes = [firma_titulo(x) for x in titulos_publicados[-6:]]
-    if firma_titulo(titulo_candidato) in firmas_recientes:
-        return True
-    
-    for t_pub in titulos_publicados:
-        t_pub_lower = t_pub.lower().strip()
-        if candidato_lower == t_pub_lower:
-            return True
-        palabras_cand = set(re.findall(r'\w+', candidato_lower))
-        palabras_pub = set(re.findall(r'\w+', t_pub_lower))
-        if palabras_cand and palabras_pub:
-            interseccion = palabras_cand & palabras_pub
-            union = palabras_cand | palabras_pub
-            similitud = len(interseccion) / len(union) if union else 0
-            if similitud > 0.85:
-                return True
-    return False
-
-def generar_titulo_power_largo(ingrediente, problema=None):
-    """Título POWER ≤70 chars con emoji + número + power word. Anti-plantilla."""
-    problemas = [p.strip() for p in str(problema or "").split(",") if p.strip()]
-    prob = problemas[0].lower() if problemas else "tu bienestar"
-    if len(prob) > 26:
-        prob = prob[:26].rsplit(" ", 1)[0]
-    num = random.choice([3, 4, 5, 7])
-    e1, e2 = random.sample(EMOJIS_TITULO, 2)
-    
-    # Intentar fórmulas POWER (80%) o variadas (20%)
-    for _ in range(20):
-        if random.random() < 0.8:
-            formula = random.choice(FORMULAS_POWER_LARGO)
-            t = formula.format(ingrediente=ingrediente, problema=prob,
-                               problema_cap=prob.capitalize(), num=num, e1=e1, e2=e2)
-        else:
-            cat = random.choice(list(FORMULAS_TITULOS_VARIADAS.keys()))
-            formula = random.choice(FORMULAS_TITULOS_VARIADAS[cat])
-            t = formula.format(ingrediente=ingrediente, problema=prob)
-        
-        t = re.sub(r'\s+', ' ', t).strip()
-        if len(t) > 70:
-            t = t[:67].rsplit(" ", 1)[0] + " " + e2
-        if any(p in t.lower() for p in PALABRAS_PROHIBIDAS_TITULO):
-            continue
-        if patron_saturado(t) or titulo_ya_existe(t):
-            continue
-        return t
-    
-    # Último recurso
-    return f"{e1} {ingrediente}: tradición y bienestar {e2}"[:70]
-
-def optimizar_titulo_largo(titulo_ia, ingrediente, problema=None):
-    """
-    Optimiza título con sistema INTELIGENTE NIVEL 2:
-    1. Si IA generó título POWER y familia no saturada → lo RESPETA
-    2. Si no, genera título POWER con anti-patrón saturado
-    3. Verifica firma + familia + existencia
-    """
-    t = re.sub(r'#\w+', '', (titulo_ia or "").strip()).strip()
-    lower = t.lower()
-
-    # 1) Palabras prohibidas → descartar
-    if any(p in lower for p in PALABRAS_PROHIBIDAS_TITULO):
-        print("🛡️ Título con palabra prohibida → generando POWER...")
-        t = ""
-
-    # 2) Detectar si título IA es POWER y su familia no está saturada
-    tiene_emoji = any(e in t for e in EMOJIS_TITULO)
-    tiene_numero = bool(re.search(r'\d', t))
-    power_words = ["secreto", "poder", "verdad", "descubre", "sorprende", "razones", "efectos", "aliado"]
-    es_power = tiene_emoji or tiene_numero or any(pw in lower for pw in power_words)
-
-    if t and es_power and 25 <= len(t) <= 70:
-        if not patron_saturado(t) and not titulo_ya_existe(t):
-            print(f"✅ Respetando título POWER de la IA [{familia_titulo(t)}]: {t}")
-            return t[:70]
-
-    # 3) Generar título POWER con anti-patrón
-    print("⚡ Generando título POWER con anti-patrón saturado...")
-    titulo = generar_titulo_power_largo(ingrediente, problema)
-    print(f"⚡ Título POWER [{familia_titulo(titulo)}]: {titulo}")
-    return titulo[:70]
 
 # ================================================================
-# 🎯 CLASIFICADOR DE INGREDIENTES MEJORADO
+# IA: GUION (con keywords reales + auditoría de política)
 # ================================================================
-def clasificar_ingrediente(ingrediente):
-    ing_lower = ingrediente.lower()
-    
-    compuestos = ["mentol", "alcanfor", "eucaliptol", "terpeno", "extracto", 
-                  "aceite esencial", "resina", "mentol cristal"]
-    if any(k in ing_lower for k in compuestos):
-        return "compuesto"
-    
-    aceites_grasas = ["omega", "dha", "epa", "ácido graso", "aceite de pescado",
-                     "aceite de krill", "linaza", "chía", "linoleico"]
-    if any(k in ing_lower for k in aceites_grasas):
-        return "lipido"
-    
-    proteinas = ["colágeno", "colageno", "proteína", "proteina", "aminoácido", 
-                 "aminoacido", "whey", "creatina", "bcaa", "arginina", "glicina"]
-    if any(k in ing_lower for k in proteinas):
-        return "proteina"
-    
-    vitaminas = ["vitamina", "vit ", "vit.", "ácido fólico", "acido folico", 
-                 "biotina", "retinol", "tiamina", "riboflavina"]
-    minerales = ["magnesio", "zinc", "hierro", "calcio", "potasio", "selenio", 
-                 "cromo", "yodo", "cobre", "manganeso"]
-    if any(k in ing_lower for k in vitaminas + minerales):
-        return "micronutriente"
-    
-    frutas = ["naranja", "limón", "limon", "fresa", "manzana", "plátano", "platano",
-              "piña", "piña", "mango", "papaya", "arándano", "arandano", "uva",
-              "sandía", "sandia", "kiwi", "guayaba", "granada", "cereza", "ciruela",
-              "durazno", "chabacano", "tamarindo", "coco", "jitomate"]
-    if any(k in ing_lower for k in frutas):
-        return "fruta"
-    
-    hongos_probioticos = ["hongo", "reishi", "shiitake", "melena de león", 
-                         "cordyceps", "levadura", "probiótico", "probiotico", 
-                         "lactobacillus", "bifidobacterium"]
-    if any(k in ing_lower for k in hongos_probioticos):
-        return "probiotico"
-    
-    raices = ["cúrcuma", "curcuma", "jengibre", "ginseng", "maca", "ashwagandha",
-              "valeriana", "regaliz", "alcachofa", "betabel", "remolacha", "camote"]
-    if any(k in ing_lower for k in raices):
-        return "raiz"
-    
-    return "planta"
-
-# ================================================================
-# 🎯 GENERADOR DE TAGS SEO ELITE NIVEL 2 (llenan ~490/500 chars)
-# ================================================================
-def generar_tags_seo_elite(ingrediente, problema, titulo, tema_viral=None):
-    tags = []
-    ing_lower = ingrediente.lower().strip()
-    tipo = clasificar_ingrediente(ingrediente)
-    
-    print(f"   🎯 Ingrediente clasificado como: {tipo}")
-    
-    # Tags del ingrediente base
-    tags.append(ing_lower)
-    
-    if tipo == "planta":
-        tags.extend([
-            f"planta {ing_lower}",
-            f"hierba {ing_lower}",
-            f"remedio {ing_lower}",
-            f"{ing_lower} medicinal",
-            f"té de {ing_lower}",
-            f"infusión de {ing_lower}",
-        ])
-    elif tipo == "compuesto":
-        tags.extend([
-            f"{ing_lower} beneficios",
-            f"{ing_lower} natural",
-            f"{ing_lower} para salud",
-            f"extracto {ing_lower}",
-            f"{ing_lower} propiedades",
-        ])
-    elif tipo == "lipido":
-        tags.extend([
-            f"ácido graso {ing_lower}",
-            f"suplemento {ing_lower}",
-            f"{ing_lower} beneficios",
-            f"omega 3 natural",
-            f"{ing_lower} para salud",
-        ])
-    elif tipo == "proteina":
-        tags.extend([
-            f"suplemento {ing_lower}",
-            f"{ing_lower} beneficios",
-            f"{ing_lower} para salud",
-            f"{ing_lower} natural",
-        ])
-    elif tipo == "micronutriente":
-        tags.extend([
-            f"suplemento {ing_lower}",
-            f"{ing_lower} beneficios",
-            f"{ing_lower} para salud",
-            f"{ing_lower} natural",
-        ])
-    elif tipo == "fruta":
-        tags.extend([
-            f"fruta {ing_lower}",
-            f"{ing_lower} beneficios",
-            f"jugo de {ing_lower}",
-            f"{ing_lower} natural",
-        ])
-    elif tipo == "probiotico":
-        tags.extend([
-            f"suplemento {ing_lower}",
-            f"{ing_lower} beneficios",
-            f"{ing_lower} natural",
-            f"{ing_lower} para salud",
-        ])
-    elif tipo == "raiz":
-        tags.extend([
-            f"raíz de {ing_lower}",
-            f"{ing_lower} medicinal",
-            f"remedio {ing_lower}",
-            f"{ing_lower} beneficios",
-        ])
-    
-    tags.extend([
-        f"beneficios {ing_lower}",
-        f"propiedades {ing_lower}",
-        f"para qué sirve {ing_lower}",
-        f"cómo usar {ing_lower}",
-    ])
-    
-    tags.extend([
-        f"{ing_lower} remedios naturales",
-        f"{ing_lower} usos y beneficios",
-    ])
-    
-    # 🔥 TAGS DE SÍNTOMAS CON VOLUMEN REAL (máx 10)
-    prob_txt = str(problema or "").lower()
-    agregados_sintoma = 0
-    for clave, frases in TAGS_SINTOMAS_VOLUMEN.items():
-        if clave in prob_txt and agregados_sintoma < 10:
-            for fr in frases[:2]:
-                if len(fr) <= 29:
-                    tags.append(fr)
-                    agregados_sintoma += 1
-    
-    # Síntomas crudos + combinados
-    if problema:
-        problemas_individuales = [p.strip() for p in str(problema).split(",") if p.strip()]
-        for prob in problemas_individuales[:5]:
-            prob_limpio = prob.lower().strip()
-            prob_sin_acentos = re.sub(r'[áéíóú]', lambda m: {'á':'a','é':'e','í':'i','ó':'o','ú':'u'}[m.group()], prob_limpio)
-            if 3 < len(prob_sin_acentos) <= 28:
-                tags.append(prob_sin_acentos)
-                tag_rem = f"{ing_lower} para {prob_sin_acentos}"
-                if len(tag_rem) <= 29:
-                    tags.append(tag_rem)
-    
-    # Mega volumen
-    tags.extend(TAGS_MEGA_VOLUMEN)
-    
-    # Palabras del título
-    if titulo:
-        palabras_titulo = [p.lower() for p in re.findall(r'\w+', titulo) if 4 < len(p) <= 20]
-        for p in palabras_titulo[:4]:
-            if p not in [t.lower() for t in tags]:
-                tags.append(p)
-    
-    if tema_viral:
-        for kw in tema_viral.get("keywords_cortas", [])[:2]:
-            kw_l = kw.lower()
-            if len(kw_l) <= 29 and kw_l not in [t.lower() for t in tags]:
-                tags.append(kw_l)
-    
-    # Limpieza estricta
-    tags_unicos = []
-    vistos = set()
-    for tag in tags:
-        tag_limpio = re.sub(r'\s+', ' ', tag.strip().lower())
-        
-        if len(tag_limpio) > 29:
-            continue
-        if len(tag_limpio) < 3:
-            continue
-        if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
-            continue
-        if any(p in tag_limpio for p in PALABRAS_PROHIBIDAS_TITULO[:50]):
-            continue
-        if tag_limpio in vistos:
-            continue
-            
-        tags_unicos.append(tag_limpio)
-        vistos.add(tag_limpio)
-    
-    resultado = []
-    total_chars = 0
-    for tag in tags_unicos:
-        if total_chars + len(tag) + 1 > 492:
-            break
-        resultado.append(tag)
-        total_chars += len(tag) + 1
-    
-    if len(resultado) < 3:
-        resultado = ["remedios naturales", "salud natural", ingrediente.lower()][:3]
-    
-    return ", ".join(resultado[:30])
-
-def generar_tags_virales(ingrediente, problema=None, tema_viral=None):
-    return generar_tags_seo_elite(ingrediente, problema, "", tema_viral)
-
-def generar_tags_emergencia(ingrediente):
-    ing_lower = ingrediente.lower().strip()
-    tags_seguros = [
-        ing_lower,
-        f"{ing_lower} beneficios",
-        f"{ing_lower} natural",
-        "remedios naturales",
-        "remedios caseros",
-        "salud natural",
-        "medicina natural",
-        "bienestar natural",
-        "herbolaria mexicana",
-        "plantas medicinales",
-        "hierbas medicinales",
-        "salud y bienestar",
-        "vida saludable",
-        f"para que sirve {ing_lower}",
-        f"propiedades {ing_lower}",
-    ]
-    
-    resultado = []
-    total_chars = 0
-    for tag in tags_seguros:
-        tag_limpio = tag.strip().lower()
-        if len(tag_limpio) > 29 or len(tag_limpio) < 3:
-            continue
-        if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
-            continue
-        if total_chars + len(tag_limpio) + 1 > 490:
-            break
-        resultado.append(tag_limpio)
-        total_chars += len(tag_limpio) + 1
-    
-    return ", ".join(resultado[:15])
-
-# ================================================================
-# 🤖 IA GENERA GUION (MEJORADO - hook keyword-first + título variado)
-# ================================================================
-def ia_genera_guion_largo(producto, ingrediente, tema_viral):
+def ia_genera_guion_largo(producto, ingrediente, tema_viral, sugerencias):
     info_catalogo = obtener_info_ingrediente_catalogo(ingrediente) or "Sin ficha en catálogo; usa conocimiento general verificado."
     curiosidad = obtener_curiosidad_catalogo(ingrediente) or ""
-    problema = producto.get('recomendado_para', '')
-    keywords_virales_prompt = obtener_keywords_aleatorias_virales(8)
-    prohibidas_str = ", ".join(f'"{p}"' for p in PALABRAS_PROHIBIDAS_TITULO[:40]) + "..."
+    problema = producto.get("recomendado_para", "")
+    kws = obtener_keywords_aleatorias_virales(6)
+    frases_reales = [s["frase"] for s in sugerencias[:10]]
+    prohibidas_str = ", ".join(f'"{p}"' for p in HARD_TERMS[:60]) + "..."
 
-    prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (3 a 4 minutos máximo, horizontal) OPTIMIZADOS para búsquedas virales y 100% SEGUROS ante las políticas de YouTube.
+    base_prompt = f"""Eres guionista experto en salud natural, SEO para YouTube y herbolaria mexicana. Creas videos LARGOS (3 a 4 minutos, horizontal) optimizados para búsquedas reales y 100% SEGUROS ante las políticas de YouTube.
 
 📦 PRODUCTO COMPLETO:
 NOMBRE: {producto.get('nombre')}
@@ -888,62 +1092,48 @@ BENEFICIOS: {producto.get('beneficios')}
 MODO DE EMPLEO: {producto.get('MODO DE EMPLEO / DOSIS')}
 
 🌱 INGREDIENTE ESTRELLA OBLIGATORIO (NO lo cambies): {ingrediente}
-📚 FICHA DEL CATÁLOGO DEL INGREDIENTE: {info_catalogo}
-💡 DATO CURIOSO DEL CATÁLOGO (úsalo en el hook o en un beneficio): {curiosidad}
-🎯 TEMA VIRAL DE ESTE VIDEO: {tema_viral['tema'].upper()} (keywords: {', '.join(tema_viral['keywords_cortas'])})
-💊 PROBLEMA QUE RESUELVE: {problema}
+📚 FICHA DEL CATÁLOGO: {info_catalogo}
+💡 DATO CURIOSO (úsalo en el hook o en un beneficio): {curiosidad}
+🎯 TEMA VIRAL: {tema_viral['tema'].upper()} (keywords: {', '.join(tema_viral['keywords_cortas'])})
+💊 PROBLEMA: {problema}
 
-🔑 KEYWORDS VIRALES DE ALTO VOLUMEN QUE DEBES USAR:
-{', '.join(keywords_virales_prompt)}
+🔎 FRASES QUE LA GENTE BUSCA REALMENTE EN YOUTUBE MÉXICO (autocompletado). Incorpóralas de forma NATURAL en el guion hablado (sin forzar) y úsalas para inspirar los títulos:
+{chr(10).join('- ' + f for f in frases_reales) if frases_reales else '- (sin datos; usa remedios naturales, beneficios, propiedades)'}
 
-⚠️ IMPORTANTE: DURACIÓN OBJETIVO 3 A 4 MINUTOS.
-Sé directo, conciso y evita relleno. Cada palabra cuenta. Respeta estrictamente los conteos de palabras.
+🔑 KEYWORDS GENERALES: {', '.join(kws)}
 
-🎬 ESTRUCTURA OBLIGATORIA (8 segmentos, ~3:30 minutos reales):
-1. "hook" (35-45 palabras): ⚠️ CRÍTICO - La PRIMERA ORACIÓN debe decir el nombre del ingrediente Y el beneficio principal en menos de 15 palabras (YouTube indexa las primeras palabras habladas). Ejemplo: "La zarzaparrilla es la raíz que tu circulación estaba esperando." Gancho emocional + keyword viral.
-2. "problema" (65-80 palabras): El problema/síntoma que sufre la audiencia ({problema}).
-3. "ingrediente" (95-110 palabras): Presenta el ingrediente estrella, origen breve.
-4. "beneficio_1" (65-80 palabras): Primer beneficio según la tradición.
-5. "beneficio_2" (65-80 palabras): Segundo beneficio.
-6. "beneficio_3" (65-80 palabras): Tercer beneficio.
-7. "producto" (120-140 palabras): Presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
-8. "cta" (100-120 palabras): Resumen breve + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+⚠️ DURACIÓN OBJETIVO 3 A 4 MINUTOS. Sé directo, sin relleno. Respeta los conteos de palabras.
 
-REGLAS GENERALES:
+🎬 ESTRUCTURA OBLIGATORIA (8 segmentos):
+1. "hook" (35-45 palabras): ⚠️ La PRIMERA ORACIÓN debe decir el nombre del ingrediente Y el beneficio principal en menos de 15 palabras. Ejemplo: "La zarzaparrilla es la raíz que tu circulación estaba esperando."
+2. "problema" (65-80): el problema/síntoma de la audiencia ({problema}).
+3. "ingrediente" (95-110): presenta el ingrediente, origen breve. Menciona su nombre al menos 2 veces.
+4. "beneficio_1" (65-80): primer beneficio según la tradición.
+5. "beneficio_2" (65-80): segundo beneficio.
+6. "beneficio_3" (65-80): tercer beneficio.
+7. "producto" (120-140): presenta {producto.get('nombre')}, cómo contiene el ingrediente y modo de empleo.
+8. "cta" (100-120): resumen breve + DEBE terminar EXACTAMENTE con: "¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+
+REGLAS:
 - Si el ingrediente suena a saborizante, habla del ingrediente REAL.
-- NO digas números de WhatsApp/Telegram en el audio (solo la frase final del cta).
+- NO digas números de WhatsApp/Telegram en el audio.
 - Tono educativo, cálido y cercano. Sin emojis en el texto hablado.
-- Incluye SIEMPRE un disclaimer natural: "esto es información educativa basada en la tradición herbolaria, no sustituye la consulta médica".
-- Cada segmento incluye "texto_pantalla" (MÁX 3-4 palabras) y "query_pexels" (en inglés, descripción visual horizontal 16:9).
+- Incluye un disclaimer natural: "esto es información educativa basada en la tradición herbolaria, no sustituye la consulta médica".
+- Cada segmento lleva "texto_pantalla" (MÁX 3-4 palabras, será título de capítulo en beneficios) y "query_pexels" (inglés, descripción visual horizontal 16:9).
 
-🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO):
-NUNCA uses:
-{prohibidas_str}
+🚨 POLÍTICA DE SALUD DE YOUTUBE (CRÍTICO). NUNCA uses: {prohibidas_str}
+✅ MARCOS SEGUROS: "apoya", "favorece", "contribuye al bienestar", "según la tradición", "aliado natural", "complemento para", "parte de un estilo de vida saludable".
 
-✅ MARCOS SEGUROS:
-- "apoya", "favorece", "contribuye al bienestar", "alivia tradicionalmente"
-- "aliado natural", "complemento para", "parte de un estilo de vida saludable"
-- "remedios naturales", "remedios caseros", "medicina natural"
-
-📝 TÍTULO DEL VIDEO (MUY IMPORTANTE - VARIEDAD OBLIGATORIA):
-⚠️ PROHIBIDO iniciar SIEMPRE con "Para qué sirve" o "El secreto ancestral del" (ya están saturados en el canal).
-⚠️ VARÍA el inicio del título usando UNA de estas fórmulas (elige solo una):
-
-FÓRMULAS DISPONIBLES (elige UNA al azar, con 1 emoji y 1 número cuando sea natural):
-A) "🌿 {ingrediente}: 3 secretos para {problema} que pocos conocen ⚡"
-B) "🫀 ¿{problema}? Esto es lo que {ingrediente} hace en tu cuerpo 🌿"
-C) "✨ {ingrediente}: 5 beneficios reales según la herbolaria 💪"
-D) "🌱 El poder oculto de {ingrediente} para {problema} 🔥"
-E) "💚 {problema}: así apoya {ingrediente} tu bienestar 🌿"
-F) "☀️ Lo que los abuelos sabían de {ingrediente} para {problema} 🍵"
-G) "⚡ ¿Usas {ingrediente}? 7 cosas que nadie te explicó ✨"
-
-El título DEBE ser VARIADO, con keyword natural, máx 65 caracteres, SIN hashtags, 100% seguro.
+📝 TÍTULOS: devuelve 8 CANDIDATOS distintos (máx 66 caracteres, SIN hashtags, 1 emoji como máximo, keyword del ingrediente en las primeras palabras). Mezcla 3 tipos:
+- BÚSQUEDA (2): usa una frase real de la lista de arriba (ej. "Para qué sirve X", "X beneficios", "Cómo tomar X").
+- CURIOSIDAD (3): brecha de curiosidad honesta, con número o pregunta.
+- PROBLEMA-SOLUCIÓN (3): conecta el ingrediente con {problema} usando "apoya", "tradición", "aliado".
+Cada candidato debe empezar de forma DIFERENTE. Nada de promesas de cura ni clickbait exagerado.
 
 Devuelve ESTRICTAMENTE este JSON:
 {{
   "ingrediente_real": "nombre real normalizado del ingrediente",
-  "titulo": "Título SEO viral VARIADO (máx 65 chars, SIN hashtags, 100% seguro, NO inicies siempre con 'Para qué sirve')",
+  "titulos_candidatos": ["...", "...", "...", "...", "...", "...", "...", "..."],
   "segmentos": {{
     "hook": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "problema": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
@@ -954,144 +1144,148 @@ Devuelve ESTRICTAMENTE este JSON:
     "producto": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}},
     "cta": {{"texto": "...", "texto_pantalla": "...", "query_pexels": "..."}}
   }},
-  "tags": "NO generes tags, se generan automáticamente",
-  "gancho_descripcion": "Gancho SEO con keyword viral (máx 90 caracteres)",
+  "gancho_descripcion": "Gancho SEO con keyword (máx 90 caracteres)",
   "contexto_descripcion": "1-2 oraciones educativas con keywords naturales"
 }}"""
 
+    aviso_extra = ""
     for intento in range(5):
         try:
-            print(f"🤖 IA escribiendo guion de 3-4 min con SEO viral... (intento {intento+1}/5)")
-            r = requests.post("https://api.deepseek.com/v1/chat/completions",
+            print(f"🤖 IA escribiendo guion... (intento {intento + 1}/5)")
+            r = requests.post(
+                "https://api.deepseek.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {DEEPSEEK_API_KEY}", "Content-Type": "application/json"},
-                json={"model": "deepseek-chat", "messages": [{"role": "user", "content": prompt}],
-                      "temperature": 0.9, "max_tokens": 3000, "response_format": {"type": "json_object"}}, timeout=120)
+                json={"model": "deepseek-chat", "messages": [{"role": "user", "content": base_prompt + aviso_extra}],
+                      "temperature": 0.9, "max_tokens": 4000, "response_format": {"type": "json_object"}},
+                timeout=150)
             r.raise_for_status()
             resp = r.json()["choices"][0]["message"]["content"].strip()
             resp = re.sub(r'`json\s*', '', resp).replace('`', '')
             i0, i1 = resp.find('{'), resp.rfind('}')
-            data = json.loads(resp[i0:i1+1], strict=False)
+            data = json.loads(resp[i0:i1 + 1], strict=False)
 
-            orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
-            for k in orden:
-                if k not in data.get("segmentos", {}) or len(data["segmentos"][k].get("texto", "")) < 30:
+            segs = data.get("segmentos", {})
+            for k in ORDEN_SEGMENTOS:
+                if k not in segs or len(segs[k].get("texto", "")) < 30:
                     raise ValueError(f"Segmento {k} faltante o corto")
 
-            cta_txt = data["segmentos"]["cta"]["texto"]
+            # CTA exacto
+            cta_txt = segs["cta"]["texto"]
             if "contactos están en la descripción" not in cta_txt.lower():
-                data["segmentos"]["cta"]["texto"] = cta_txt.rstrip() + " ¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
+                segs["cta"]["texto"] = cta_txt.rstrip() + " ¿Quieres saber más o adquirir este producto? Contáctanos por WhatsApp o a nuestro asesor por Telegram, los contactos están en la descripción."
 
-            data["ingrediente_real"] = data.get("ingrediente_real") or ingrediente
-            data["titulo"] = optimizar_titulo_largo(data.get("titulo"), data["ingrediente_real"], problema)
-            data["tags"] = generar_tags_seo_elite(
-                data["ingrediente_real"], 
-                problema, 
-                data.get("titulo", ""), 
-                tema_viral
-            )
+            # Auditoría de política del guion hablado (ignora el descargo "no sustituye...")
+            texto_total = " ".join(segs[k]["texto"] for k in ORDEN_SEGMENTOS)
+            aud = auditar_texto(texto_total, es_guion=True)
+            if aud["duras"]:
+                aviso_extra = f"\n\n⚠️ En el intento anterior usaste palabras PROHIBIDAS: {aud['duras']}. Reescribe sin ellas ni sinónimos que prometan curas."
+                raise ValueError(f"Guion con palabras prohibidas: {aud['duras']}")
 
-            print(f"✅ Guion listo. Ingrediente real: {data['ingrediente_real']}")
-            print(f"🔥 Título SEO: {data.get('titulo')}")
-            print(f"🏷️ Tags SEO Elite ({len(data['tags'].split(','))} tags): {data.get('tags')[:120]}...")
+            # SEO hablado: ingrediente en la primera oración del hook
+            real = data.get("ingrediente_real") or ingrediente
+            primera = " ".join(segs["hook"]["texto"].split()[:18])
+            toks = [t for t in normalizar(real).split() if len(t) > 3] or [normalizar(real)]
+            if not any(t in normalizar(primera) for t in toks):
+                aviso_extra = f"\n\n⚠️ La primera oración del hook DEBE nombrar '{real}' y su beneficio."
+                raise ValueError("El hook no nombra el ingrediente al inicio")
+
+            palabras = sum(len(segs[k]["texto"].split()) for k in ORDEN_SEGMENTOS)
+            print(f"   📏 Guion: {palabras} palabras (~{palabras / 2.7 / 60:.1f} min)")
+            if palabras < 450 or palabras > 850:
+                print("   ⚠️ Duración fuera del objetivo 3-4 min, se continúa igualmente.")
+
+            data["ingrediente_real"] = real
+            print(f"✅ Guion listo. Ingrediente real: {real}")
             return data
         except Exception as e:
-            print(f"⚠️ Intento {intento+1} falló: {e}")
-            if intento == 4: sys.exit(1)
+            print(f"⚠️ Intento {intento + 1} falló: {e}")
+            if intento == 4:
+                sys.exit(1)
             time.sleep(8)
 
+
 # ================================================================
-# 🎤 VOZ CON REINTENTOS + FALLBACK INTELIGENTE
+# VOZ (con tiempos de palabra para subtítulos)
 # ================================================================
+async def _tts(texto, path, voz):
+    try:
+        com = edge_tts.Communicate(texto, voz["voz"], rate=voz["velocidad"], boundary="WordBoundary")
+    except TypeError:
+        com = edge_tts.Communicate(texto, voz["voz"], rate=voz["velocidad"])
+    eventos = []
+    with open(path, "wb") as f:
+        async for ch in com.stream():
+            if ch["type"] == "audio":
+                f.write(ch["data"])
+            elif ch["type"] in ("WordBoundary", "SentenceBoundary"):
+                eventos.append((ch["offset"] / 1e7, ch["duration"] / 1e7, ch["text"]))
+    return eventos
+
+
+def _audio_ok(path):
+    return os.path.exists(path) and os.path.getsize(path) > 100
+
+
 def validar_voz():
-    """Prueba cada voz hasta encontrar una que funcione."""
     for voz in VOCES_DISPONIBLES:
         try:
             print(f"🎤 Probando voz: {voz['voz']} ({voz['estilo']})...")
-            async def test():
-                c = edge_tts.Communicate("Prueba de voz para verificar disponibilidad.", voz["voz"], rate=voz["velocidad"])
-                await c.save("test_voz.mp3")
-            asyncio.new_event_loop().run_until_complete(test())
-            if os.path.exists("test_voz.mp3") and os.path.getsize("test_voz.mp3") > 100:
+            _run(_tts("Prueba de voz para verificar disponibilidad.", "test_voz.mp3", voz))
+            if _audio_ok("test_voz.mp3"):
                 os.remove("test_voz.mp3")
-                print(f"✅ Voz seleccionada: {voz['voz']} ({voz['estilo']})")
+                print(f"✅ Voz seleccionada: {voz['voz']}")
                 return voz
         except Exception as e:
             print(f"⚠️ Voz {voz['voz']} no disponible: {str(e)[:100]}")
-            continue
-    print("❌ Ninguna voz disponible, usando la primera por defecto")
+    print("❌ Ninguna voz respondió, usando la primera por defecto")
     return VOCES_DISPONIBLES[0]
 
+
 def generar_audio(texto, path, voz, max_intentos=3):
-    """
-    Genera audio con reintentos automáticos.
-    Si falla una voz, prueba con las siguientes disponibles.
-    """
-    texto_limpio = re.sub(r'[^\w\sáéíóúüñÁÉÍÓÚÜÑ0-9\s.,;:!?¿¡\'\"]', '', texto)
-    
+    """Devuelve (eventos, voz_usada) o None. Si cambia de voz, el llamador la mantiene."""
+    limpio = re.sub(r'[^\w\sáéíóúüñÁÉÍÓÚÜÑ0-9.,;:!?¿¡\'"]', '', texto)
     for intento in range(max_intentos):
         try:
-            async def _gen():
-                c = edge_tts.Communicate(texto_limpio, voz["voz"], rate=voz["velocidad"])
-                await c.save(path)
-            asyncio.new_event_loop().run_until_complete(_gen())
-            
-            if os.path.exists(path) and os.path.getsize(path) > 100:
-                if intento > 0:
-                    print(f"   ✅ Audio generado en intento {intento+1}/{max_intentos}")
-                return path
-                
+            ev = _run(_tts(limpio, path, voz))
+            if _audio_ok(path):
+                return ev, voz
         except Exception as e:
-            error_msg = str(e)
-            if "403" in error_msg or "401" in error_msg or "Forbidden" in error_msg:
-                print(f"   ⚠️ Voz {voz['voz']} bloqueada (intento {intento+1}/{max_intentos}): {error_msg[:80]}")
-            else:
-                print(f"   ⚠️ Error generando audio (intento {intento+1}/{max_intentos}): {error_msg[:80]}")
-            
+            print(f"   ⚠️ Audio intento {intento + 1}/{max_intentos}: {str(e)[:80]}")
             if intento < max_intentos - 1:
-                espera = 2 ** intento
-                print(f"   ⏳ Esperando {espera}s antes de reintentar...")
-                time.sleep(espera)
-    
-    print(f"   🔄 Voz {voz['voz']} falló tras {max_intentos} intentos. Probando voces alternativas...")
-    for voz_alt in VOCES_DISPONIBLES:
-        if voz_alt["voz"] == voz["voz"]:
+                time.sleep(2 ** intento)
+    print(f"   🔄 Voz {voz['voz']} falló. Probando alternativas...")
+    for alt in VOCES_DISPONIBLES:
+        if alt["voz"] == voz["voz"]:
             continue
-        
         try:
-            print(f"   🎤 Probando voz alternativa: {voz_alt['voz']}...")
-            async def _gen_alt():
-                c = edge_tts.Communicate(texto_limpio, voz_alt["voz"], rate=voz_alt["velocidad"])
-                await c.save(path)
-            asyncio.new_event_loop().run_until_complete(_gen_alt())
-            
-            if os.path.exists(path) and os.path.getsize(path) > 100:
-                print(f"   ✅ Audio generado con voz alternativa: {voz_alt['voz']}")
-                return path
-                
+            ev = _run(_tts(limpio, path, alt))
+            if _audio_ok(path):
+                print(f"   ✅ Cambio a voz {alt['voz']} para el resto del video")
+                return ev, alt
         except Exception as e:
-            print(f"   ⚠️ Voz alternativa {voz_alt['voz']} también falló: {str(e)[:60]}")
-            continue
-    
-    print(f"   ❌ Todas las voces fallaron para este segmento")
+            print(f"   ⚠️ {alt['voz']} falló: {str(e)[:60]}")
     return None
 
+
 # ================================================================
-# 🖼️ IMÁGENES: PEXELS (fallback)
+# IMÁGENES DE SEGMENTO
 # ================================================================
 def buscar_imagen_pexels_horizontal(query, intentos=3):
-    if not PEXELS_API_KEY: return None
-    url = "https://api.pexels.com/v1/search"
-    headers = {"Authorization": PEXELS_API_KEY}
-    for intento in range(intentos):
+    if not PEXELS_API_KEY:
+        return None
+    for _ in range(intentos):
         try:
             params = {"query": f"{query} {random.choice(['natural', 'healthy', 'close up', 'cinematic'])}",
                       "orientation": "landscape", "per_page": 6, "page": random.randint(1, 5)}
-            r = requests.get(url, headers=headers, params=params, timeout=15)
+            r = requests.get("https://api.pexels.com/v1/search", headers={"Authorization": PEXELS_API_KEY},
+                             params=params, timeout=15)
             if r.status_code == 200 and r.json().get("photos"):
                 return random.choice(r.json()["photos"][:4])["src"]["large2x"]
-        except Exception: pass
+        except Exception:
+            pass
         time.sleep(3)
     return None
+
 
 def descargar_imagen(url, salida):
     r = requests.get(url, timeout=20)
@@ -1100,7 +1294,8 @@ def descargar_imagen(url, salida):
     if img.mode != "RGB":
         fondo = Image.new("RGB", img.size, (255, 255, 255))
         if img.mode in ("RGBA", "LA", "P"):
-            fondo.paste(img.convert("RGBA"), mask=img.convert("RGBA").split()[3])
+            rgba = img.convert("RGBA")
+            fondo.paste(rgba, mask=rgba.split()[3])
             img = fondo
         else:
             img = img.convert("RGB")
@@ -1108,56 +1303,50 @@ def descargar_imagen(url, salida):
     img.save(salida, "JPEG", quality=90)
     return salida
 
-# ================================================================
-# 🎨 IMÁGENES DE SEGMENTOS: FLUX CLOUDFLARE → PEXELS
-# ================================================================
+
 SEGMENTO_FLUX_SUFFIX = (", ultra vivid saturated colors, dramatic cinematic lighting, high-contrast macro photography, "
                         "lush botanical herbal theme, glossy dew textures, dark vignette edges with bright glowing subject, "
                         "clean negative space in the lower third for text overlay, "
                         "no text, no watermark, no people, widescreen 16:9")
 
-def _flux_cloudflare_imagen(query, salida):
+
+def _flux_cloudflare(prompt, salida, size=(ANCHO, ALTO), timeout=90):
     url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
-    headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-    payload = {
-        "prompt": query + SEGMENTO_FLUX_SUFFIX,
-        "steps": 4
-    }
-    r = requests.post(url, headers=headers, json=payload, timeout=90)
+    r = requests.post(url, headers={"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"},
+                      json={"prompt": prompt, "steps": 4}, timeout=timeout)
     r.raise_for_status()
-    data = r.json()
-    b64 = (data.get("result") or {}).get("image")
+    b64 = (r.json().get("result") or {}).get("image")
     if not b64:
-        raise ValueError(f"Cloudflare no devolvió imagen: {str(data)[:200]}")
+        raise ValueError("Cloudflare no devolvió imagen")
     with open(salida, "wb") as f:
         f.write(base64.b64decode(b64))
     with Image.open(salida) as im:
-        im = ImageOps.fit(im.convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS)
-        im.save(salida, "JPEG", quality=90)
+        ImageOps.fit(im.convert("RGB"), size, Image.Resampling.LANCZOS).save(salida, "JPEG", quality=90)
     return salida
+
 
 def buscar_imagen_segmento(query_en, salida):
     if CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID:
         for intento in range(1, 4):
             try:
                 print(f"   🎨 Flux segmento intento {intento}/3...")
-                _flux_cloudflare_imagen(query_en, salida)
-                print(f"   ✅ Imagen de segmento generada con Flux (Cloudflare)")
+                _flux_cloudflare(query_en + SEGMENTO_FLUX_SUFFIX, salida)
+                print("   ✅ Imagen generada con Flux (Cloudflare)")
                 return salida
             except Exception as e:
-                print(f"   ⚠️ Flux segmento intento {intento} falló: {e}")
+                print(f"   ⚠️ Flux intento {intento} falló: {e}")
                 time.sleep(2)
-        print("   ⚠️ Flux falló tras 3 intentos en este segmento. Usando Pexels.")
+        print("   ⚠️ Flux falló 3 veces. Usando Pexels.")
     else:
-        print("   ⚠️ Sin keys de Cloudflare configuradas. Usando Pexels para el segmento.")
-
+        print("   ⚠️ Sin keys de Cloudflare. Usando Pexels.")
     url_img = buscar_imagen_pexels_horizontal(query_en)
     if url_img:
         try:
             return descargar_imagen(url_img, salida)
         except Exception as e:
-            print(f"   ⚠️ Pexels falló ({e}). Usando imagen por defecto.")
+            print(f"   ⚠️ Pexels falló ({e}). Imagen por defecto.")
     return descargar_imagen("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&fit=crop", salida)
+
 
 def potenciar_imagen_segmento(img_path):
     try:
@@ -1168,26 +1357,152 @@ def potenciar_imagen_segmento(img_path):
             im = ImageEnhance.Brightness(im).enhance(1.05)
             im = ImageEnhance.Sharpness(im).enhance(1.3)
             im.save(img_path, "JPEG", quality=90)
-        return img_path
     except Exception as e:
         print(f"⚠️ Error potenciando imagen: {e}")
-        return img_path
+    return img_path
+
 
 # ================================================================
-# 🖼️ TEXTO QUEMADO ESTILO VIRAL + COMPOSICIÓN DE PRODUCTO
+# TIPOGRAFÍA / RENDER DE TEXTO
 # ================================================================
+FONT_THUMB_URL = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
+FONT_THUMB_LOCAL = "Anton-Regular.ttf"
+
+
+def asegurar_fuente_thumbnail():
+    if os.path.exists(FONT_THUMB_LOCAL):
+        return FONT_THUMB_LOCAL
+    try:
+        r = requests.get(FONT_THUMB_URL, timeout=30)
+        r.raise_for_status()
+        with open(FONT_THUMB_LOCAL, "wb") as f:
+            f.write(r.content)
+        print("✅ Fuente Anton descargada")
+        return FONT_THUMB_LOCAL
+    except Exception:
+        print("⚠️ No se pudo descargar Anton, usando DejaVu")
+        return FUENTE
+
+
+def _medir(texto, font, stroke=0):
+    d = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
+    return d.textbbox((0, 0), texto, font=font, stroke_width=stroke)
+
+
+def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90), bottom=(255, 150, 0)):
+    font = ImageFont.truetype(font_path, size)
+    b = _medir(texto, font, stroke)
+    w = (b[2] - b[0]) + stroke * 2 + 8
+    h = (b[3] - b[1]) + stroke * 2 + 8
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(out)
+    ox, oy = stroke + 4 - b[0], stroke + 4 - b[1]
+    d.text((ox, oy), texto, font=font, fill=(10, 10, 10, 255), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
+    grad = np.zeros((h, w, 4), dtype=np.uint8)
+    t = np.linspace(0, 1, h)[:, None]
+    grad_rgb = (np.array(top, float) * (1 - t) + np.array(bottom, float) * t).astype(np.uint8)
+    grad[:, :, :3] = np.broadcast_to(grad_rgb[:, None, :], (h, w, 3))
+    grad[:, :, 3] = 255
+    grad_img = Image.fromarray(grad, "RGBA")
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).text((ox, oy), texto, font=font, fill=255)
+    grad_img.putalpha(mask)
+    return Image.alpha_composite(out, grad_img)
+
+
+def render_texto_solido(texto, font_path, size, fill=(255, 255, 255), stroke=8):
+    font = ImageFont.truetype(font_path, size)
+    b = _medir(texto, font, stroke)
+    w = (b[2] - b[0]) + stroke * 2 + 8
+    h = (b[3] - b[1]) + stroke * 2 + 8
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(img).text((stroke + 4 - b[0], stroke + 4 - b[1]), texto, font=font,
+                             fill=fill + (255,), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
+    return img
+
+
+def render_banner(texto, font_path, size, bg=(198, 30, 30), fg=(255, 255, 255), borde=(255, 235, 59), pad_x=28, pad_y=12):
+    font = ImageFont.truetype(font_path, size)
+    b = _medir(texto, font)
+    tw, th = b[2] - b[0], b[3] - b[1]
+    w = tw + pad_x * 2 + 8
+    h = th + pad_y * 2 + 8
+    img = Image.new("RGBA", (w + 14, h + 16), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([7, 10, w + 7, h + 10], radius=14, fill=(0, 0, 0, 140))
+    d.rounded_rectangle([7, 6, w + 7, h + 6], radius=14, fill=bg + (255,), outline=borde + (255,), width=4)
+    d.text((7 + pad_x - b[0], 6 + pad_y - b[1]), texto, font=font, fill=fg + (255,))
+    return img
+
+
+def _fit(texto, font_path, size_max, size_min, ancho_max, renderer, **kw):
+    size = size_max
+    while size > size_min:
+        img = renderer(texto, font_path, size, **kw)
+        if img.width <= ancho_max:
+            return img
+        size -= 6
+    return renderer(texto, font_path, size_min, **kw)
+
+
+# ================================================================
+# PRODUCTO RECORTADO (cache: rembg corre una sola vez por video)
+# ================================================================
+_CACHE_PROD = {}
+
+
+def producto_recortado(url):
+    if url not in _CACHE_PROD:
+        rp = requests.get(url, timeout=20, verify=False)
+        prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
+        try:
+            prod = remove(prod)
+            print("   ✂️ Fondo del producto eliminado")
+        except Exception as e:
+            print(f"   ⚠️ rembg falló ({e}), usando imagen original")
+        bbox = prod.getbbox()
+        if bbox:
+            prod = prod.crop(bbox)
+        _CACHE_PROD[url] = prod
+    return _CACHE_PROD[url].copy()
+
+
+def _cargar_fondo(url_o_ruta):
+    if os.path.exists(url_o_ruta):
+        return Image.open(url_o_ruta).convert("RGB")
+    r = requests.get(url_o_ruta, timeout=20)
+    r.raise_for_status()
+    return Image.open(io.BytesIO(r.content)).convert("RGB")
+
+
+def componer_producto_horizontal(url_producto, fondo, salida="img_producto_largo.jpg"):
+    try:
+        fondo_img = ImageOps.fit(_cargar_fondo(fondo), (ANCHO, ALTO), Image.Resampling.LANCZOS)
+        prod = producto_recortado(url_producto)
+        th = int(ALTO * 0.75)
+        prod = prod.resize((int(prod.width * (th / prod.height)), th), Image.Resampling.LANCZOS)
+        sombra = prod.copy().filter(ImageFilter.GaussianBlur(radius=25))
+        x, y = ANCHO - prod.width - 140, (ALTO - th) // 2
+        fondo_img.paste(sombra, (x - 12, y - 12), sombra)
+        fondo_img.paste(prod, (x, y), prod)
+        fondo_img.save(salida, "JPEG", quality=90)
+        return salida
+    except Exception as e:
+        print(f"⚠️ Error componiendo producto: {e}")
+        return None
+
+
 def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
     try:
         fuente = asegurar_fuente_thumbnail()
-        with Image.open(img_path) as img:
-            img = img.convert("RGBA")
+        with Image.open(img_path) as im:
+            img = im.convert("RGBA")
         capa = Image.new("RGBA", img.size, (0, 0, 0, 0))
         d = ImageDraw.Draw(capa)
         texto_up = re.sub(r'[^\w\sáéíóúñÁÉÍÓÚÑ¡!¿?]', '', texto or "").upper().strip()
         if not texto_up:
             img.convert("RGB").save(salida, "JPEG", quality=90)
             return salida
-
         if estilo == "center":
             bloque = _fit(texto_up, fuente, 170, 70, int(ANCHO * 0.92), render_texto_gradiente)
             bloque = bloque.rotate(2, expand=True, resample=Image.BICUBIC)
@@ -1204,45 +1519,13 @@ def quemar_texto_pantalla(img_path, texto, salida, estilo="lower"):
                 d.line([(0, yy), (ANCHO, yy)], fill=(0, 0, 0, a))
             banner = _fit(texto_up, fuente, 110, 48, int(ANCHO * 0.86), render_banner, bg=(198, 30, 30))
             banner = banner.rotate(-2, expand=True, resample=Image.BICUBIC)
-            x = (ANCHO - banner.width) // 2
-            y = ALTO - banner.height - 150
-            capa.paste(banner, (x, y), banner)
-
-        img = Image.alpha_composite(img, capa)
-        img.convert("RGB").save(salida, "JPEG", quality=90)
+            capa.paste(banner, ((ANCHO - banner.width) // 2, ALTO - banner.height - 150), banner)
+        Image.alpha_composite(img, capa).convert("RGB").save(salida, "JPEG", quality=90)
         return salida
     except Exception as e:
         print(f"⚠️ Error quemando texto: {e}")
         return img_path
 
-def _cargar_fondo(url_o_ruta):
-    if os.path.exists(url_o_ruta):
-        return Image.open(url_o_ruta).convert("RGB")
-    r = requests.get(url_o_ruta, timeout=20)
-    r.raise_for_status()
-    return Image.open(io.BytesIO(r.content)).convert("RGB")
-
-def componer_producto_horizontal(url_producto, fondo, salida="img_producto_largo.jpg"):
-    try:
-        fondo_img = ImageOps.fit(_cargar_fondo(fondo), (ANCHO, ALTO), Image.Resampling.LANCZOS)
-        rp = requests.get(url_producto, timeout=20, verify=False)
-        prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
-        try:
-            prod = remove(prod)
-            print("   ✂️ Fondo del producto eliminado")
-        except Exception as e:
-            print(f"   ⚠️ rembg falló ({e}), usando imagen original")
-        th = int(ALTO * 0.75)
-        prod = prod.resize((int(prod.width * (th / prod.height)), th), Image.Resampling.LANCZOS)
-        sombra = prod.copy().filter(ImageFilter.GaussianBlur(radius=25))
-        x, y = ANCHO - prod.width - 140, (ALTO - th) // 2
-        fondo_img.paste(sombra, (x - 12, y - 12), sombra)
-        fondo_img.paste(prod, (x, y), prod)
-        fondo_img.save(salida, "JPEG", quality=90)
-        return salida
-    except Exception as e:
-        print(f"⚠️ Error componiendo producto: {e}")
-        return None
 
 def crear_overlay_cta(salida="cta_overlay.png"):
     try:
@@ -1259,6 +1542,7 @@ def crear_overlay_cta(salida="cta_overlay.png"):
         print(f"⚠️ Error overlay CTA: {e}")
         return None
 
+
 def crear_overlay_aviso(salida="aviso_overlay.png"):
     try:
         img = Image.new("RGBA", (ANCHO, ALTO), (0, 0, 0, 0))
@@ -1274,33 +1558,33 @@ def crear_overlay_aviso(salida="aviso_overlay.png"):
         print(f"⚠️ Error overlay aviso: {e}")
         return None
 
+
+# ================================================================
+# VIDEO
+# ================================================================
 def efecto_ken_burns(img_path, duracion, direccion="in"):
     clip = ImageClip(img_path).set_duration(duracion)
     if direccion == "in":
         clip = clip.resize(lambda t: 1.0 + 0.25 * (t / duracion))
     else:
         clip = clip.resize(lambda t: 1.25 - 0.25 * (t / duracion))
+
     def crop_center(frame):
         h, w = frame.shape[:2]
-        target_w, target_h = ANCHO, ALTO
-        x1 = max(0, (w - target_w) // 2)
-        y1 = max(0, (h - target_h) // 2)
-        x2 = min(w, x1 + target_w)
-        y2 = min(h, y1 + target_h)
-        return frame[y1:y2, x1:x2]
-    clip = clip.fl_image(crop_center)
-    return clip
+        x1 = max(0, (w - ANCHO) // 2)
+        y1 = max(0, (h - ALTO) // 2)
+        return frame[y1:min(h, y1 + ALTO), x1:min(w, x1 + ANCHO)]
+
+    return clip.fl_image(crop_center)
+
 
 def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
-    clips_video, clips_audio = [], []
-    duraciones_segmentos = []
-    
+    clips_video, clips_audio, duraciones = [], [], []
     for i, seg in enumerate(segmentos_img):
         audio = AudioFileClip(seg["audio_path"])
         dur = audio.duration + (PAUSA_ENTRE_SEGMENTOS if i < len(segmentos_img) - 1 else 0)
-        duraciones_segmentos.append(dur)
-        vc = efecto_ken_burns(seg["img_path"], dur, "in" if i % 2 == 0 else "out")
-        clips_video.append(vc)
+        duraciones.append(dur)
+        clips_video.append(efecto_ken_burns(seg["img_path"], dur, "in" if i % 2 == 0 else "out"))
         clips_audio.append(audio)
         if i < len(segmentos_img) - 1:
             clips_audio.append(AudioClip(lambda t: 0, duration=PAUSA_ENTRE_SEGMENTOS))
@@ -1309,7 +1593,9 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
     video = concatenate_videoclips(clips_video, method="compose")
     duracion_total = audio_narracion.duration
 
-    musicas = [f for f in os.listdir(".") if f.lower().endswith(".mp3") and not f.startswith(("seg", "test", "audio")) and os.path.getsize(f) > 100]
+    musicas = [f for f in os.listdir(".") if f.lower().endswith(".mp3")
+               and not f.startswith(("seg", "test", "audio")) and os.path.getsize(f) > 100]
+    random.shuffle(musicas)
     audio_final = audio_narracion
     for m in musicas:
         try:
@@ -1322,91 +1608,141 @@ def montar_video_largo(segmentos_img, salida="largo_final.mp4"):
             break
         except Exception:
             continue
-
     video = video.set_audio(audio_final)
 
-    clips_overlays = [video]
+    overlays = [video]
     aviso = crear_overlay_aviso()
     if aviso:
-        av_clip = ImageClip(aviso, transparent=True).set_start(0).set_duration(6)
-        clips_overlays.append(av_clip)
-
-    overlay = crear_overlay_cta()
-    if overlay:
-        cta_clip = ImageClip(overlay, transparent=True).set_start(max(duracion_total - 15, 0)).set_duration(15)
-        clips_overlays.append(cta_clip)
-
-    video = CompositeVideoClip(clips_overlays, size=(ANCHO, ALTO))
+        overlays.append(ImageClip(aviso, transparent=True).set_start(0).set_duration(6))
+    cta = crear_overlay_cta()
+    if cta:
+        overlays.append(ImageClip(cta, transparent=True).set_start(max(duracion_total - 15, 0)).set_duration(15))
+    video = CompositeVideoClip(overlays, size=(ANCHO, ALTO))
 
     print("🎬 Renderizando video largo (puede tardar varios minutos)...")
     video.write_videofile(salida, fps=24, codec="libx264", audio_codec="aac",
                           threads=4, preset="ultrafast", verbose=False, logger=None)
-    return salida, duraciones_segmentos, duracion_total
+    return salida, duraciones, duracion_total
 
-def formatear_timestamp(segundos):
-    minutos = int(segundos) // 60
-    segs = int(segundos) % 60
-    return f"{minutos:02d}:{segs:02d}"
-
-def generar_capitulos_dinamicos(duraciones_segmentos):
-    nombres_segmentos = [
-        "Introducción",
-        "El problema",
-        "El ingrediente estrella",
-        "Beneficio 1",
-        "Beneficio 2",
-        "Beneficio 3",
-        "El producto recomendado",
-        "Cómo conseguirlo",
-    ]
-    
-    capitulos = []
-    tiempo_acumulado = 0.0
-    
-    for i, dur in enumerate(duraciones_segmentos):
-        timestamp = formatear_timestamp(tiempo_acumulado)
-        nombre = nombres_segmentos[i] if i < len(nombres_segmentos) else f"Capítulo {i+1}"
-        capitulos.append(f"{timestamp} {nombre}")
-        tiempo_acumulado += dur
-    
-    return "\n".join(capitulos)
 
 # ================================================================
-# 🎨 MOTOR DE FONDOS FLUX PARA MINIATURA
+# SUBTÍTULOS SRT + CAPÍTULOS CON KEYWORDS
+# ================================================================
+def formatear_timestamp(segundos):
+    return f"{int(segundos) // 60:02d}:{int(segundos) % 60:02d}"
+
+
+def _fmt_srt(t):
+    t = max(0.0, t)
+    ms = int(round((t - int(t)) * 1000))
+    s = int(t)
+    if ms == 1000:
+        s, ms = s + 1, 0
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d},{ms:03d}"
+
+
+def _palabras_con_tiempo(eventos, texto, duracion):
+    palabras = []
+    for inicio, dur, txt in eventos:
+        ws = txt.split()
+        total = sum(len(w) for w in ws) or 1
+        t = inicio
+        for w in ws:
+            d = dur * len(w) / total
+            palabras.append((t, t + d, w))
+            t += d
+    if not palabras:  # sin eventos: reparto proporcional
+        ws = texto.split()
+        total = sum(len(w) for w in ws) or 1
+        t = 0.0
+        for w in ws:
+            d = duracion * len(w) / total
+            palabras.append((t, t + d, w))
+            t += d
+    return palabras
+
+
+def construir_srt(segmentos_info, salida="subtitulos_largo.srt"):
+    cues = []
+    for seg in segmentos_info:
+        pals = _palabras_con_tiempo(seg["eventos"], seg["texto"], seg["duracion"])
+        grupo = []
+
+        def volcar():
+            if grupo:
+                ini = seg["inicio"] + grupo[0][0]
+                fin = seg["inicio"] + grupo[-1][1]
+                cues.append([ini, max(fin, ini + 0.4), " ".join(x[2] for x in grupo)])
+                grupo.clear()
+
+        for p in pals:
+            grupo.append(p)
+            fin_frase = p[2].endswith((".", "?", "!", ",", ";", ":"))
+            if len(grupo) >= 8 or (grupo[-1][1] - grupo[0][0]) >= 3.5 or (fin_frase and len(grupo) >= 4):
+                volcar()
+        volcar()
+    for i in range(len(cues) - 1):  # evita solapes
+        if cues[i][1] > cues[i + 1][0]:
+            cues[i][1] = max(cues[i][0] + 0.2, cues[i + 1][0] - 0.01)
+    with open(salida, "w", encoding="utf-8") as f:
+        for i, (ini, fin, txt) in enumerate(cues, 1):
+            f.write(f"{i}\n{_fmt_srt(ini)} --> {_fmt_srt(fin)}\n{txt}\n\n")
+    print(f"📝 SRT generado: {len(cues)} líneas")
+    return salida
+
+
+def generar_capitulos_seo(duraciones, guion, ing, problema):
+    prob = (str(problema).split(",")[0].strip().lower() or "bienestar")
+    Ing = ing[:1].upper() + ing[1:]
+    segs = guion["segmentos"]
+
+    def beneficio(k, n):
+        t = (segs.get(k, {}).get("texto_pantalla") or "").strip().title()
+        return f"Beneficio {n}: {t}" if t else f"Beneficio {n} tradicional de {ing}"
+
+    nombres = [
+        f"Qué es {Ing} y para qué se usa",
+        f"{prob.capitalize()}: lo que debes saber",
+        f"Origen y uso tradicional de {ing}",
+        beneficio("beneficio_1", 1), beneficio("beneficio_2", 2), beneficio("beneficio_3", 3),
+        f"Producto con {ing} y cómo usarlo",
+        "Contacto y cómo conseguirlo",
+    ]
+    lineas, acumulado = [], 0.0
+    for i, dur in enumerate(duraciones):
+        nombre = nombres[i] if i < len(nombres) else f"Capítulo {i + 1}"
+        if not texto_seguro(nombre):
+            nombre = f"Parte {i + 1}: {ing}"
+        lineas.append(f"{formatear_timestamp(acumulado)} {nombre}")
+        acumulado += dur
+    return "\n".join(lineas)
+
+
+# ================================================================
+# 🎨 FONDO DE MINIATURA: FLUX (Cloudflare → HuggingFace) → Pexels
 # ================================================================
 FLUX_PROMPT_SUFFIX = (", dramatic macro photography, vivid saturated colors, cinematic lighting, "
                       "professional youtube thumbnail background, no text, no watermark, widescreen 16:9")
 
-def _guardar_fondo(bytes_img, salida):
-    with open(salida, "wb") as f:
-        f.write(bytes_img)
-    return salida
 
 def buscar_fondo_flux_cloudflare(query, salida="bg_ia.jpg"):
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
-    headers = {"Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}"}
-    payload = {
-        "prompt": query + FLUX_PROMPT_SUFFIX,
-        "steps": 4
-    }
-    r = requests.post(url, headers=headers, json=payload, timeout=120)
-    r.raise_for_status()
-    data = r.json()
-    b64 = (data.get("result") or {}).get("image")
-    if not b64:
-        raise ValueError(f"Cloudflare no devolvió imagen: {str(data)[:200]}")
-    return _guardar_fondo(base64.b64decode(b64), salida)
+    return _flux_cloudflare(query + FLUX_PROMPT_SUFFIX, salida, size=(1280, 720), timeout=120)
+
 
 def buscar_fondo_flux_huggingface(query, salida="bg_ia.jpg"):
     url = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell"
-    headers = {"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"}
-    payload = {"inputs": query + FLUX_PROMPT_SUFFIX}
-    r = requests.post(url, headers=headers, json=payload, timeout=120)
+    r = requests.post(url, headers={"Authorization": f"Bearer {HUGGINGFACE_TOKEN}"},
+                      json={"inputs": query + FLUX_PROMPT_SUFFIX}, timeout=120)
     r.raise_for_status()
     ctype = r.headers.get("Content-Type", "")
     if "image" not in ctype or len(r.content) < 20000:
         raise ValueError(f"HF no devolvió imagen válida (ctype={ctype}, bytes={len(r.content)})")
-    return _guardar_fondo(r.content, salida)
+    with open(salida, "wb") as f:
+        f.write(r.content)
+    with Image.open(salida) as im:
+        ImageOps.fit(im.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS).save(salida, "JPEG", quality=90)
+    return salida
+
 
 def buscar_fondo_ia_flux(query, salida="bg_ia.jpg", intentos=3):
     providers = []
@@ -1427,262 +1763,260 @@ def buscar_fondo_ia_flux(query, salida="bg_ia.jpg", intentos=3):
         except Exception as e:
             print(f"⚠️ Flux ({nombre}) falló: {e}")
             time.sleep(3)
-    print("⚠️ Flux falló tras 3 intentos. Usando Pexels como siempre.")
+    print("⚠️ Flux falló tras 3 intentos. Usando Pexels.")
     return None
 
+
 # ================================================================
-# 🖼️ THUMBNAIL ENGINE V3
+# MINIATURAS: 3 VARIANTES + SCORE
 # ================================================================
-FONT_THUMB_URL = "https://github.com/google/fonts/raw/main/ofl/anton/Anton-Regular.ttf"
-FONT_THUMB_LOCAL = "Anton-Regular.ttf"
+def _preparar_base(img_base):
+    with Image.open(img_base) as f:
+        bg = ImageOps.fit(f.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS)
+    bg = ImageEnhance.Color(bg).enhance(1.45)
+    bg = ImageEnhance.Contrast(bg).enhance(1.22)
+    bg = ImageEnhance.Brightness(bg).enhance(1.05)
+    return bg.convert("RGBA")
 
-def asegurar_fuente_thumbnail():
-    if os.path.exists(FONT_THUMB_LOCAL):
-        return FONT_THUMB_LOCAL
-    try:
-        r = requests.get(FONT_THUMB_URL, timeout=30)
-        r.raise_for_status()
-        with open(FONT_THUMB_LOCAL, "wb") as f:
-            f.write(r.content)
-        print("✅ Fuente Anton descargada para miniaturas")
-        return FONT_THUMB_LOCAL
-    except Exception:
-        print("⚠️ No se pudo descargar Anton, usando DejaVu")
-        return FUENTE
 
-def _medir(texto, font, stroke=0):
-    d = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
-    return d.textbbox((0, 0), texto, font=font, stroke_width=stroke)
+def _gradiente_izq(bg, ancho=900, alpha=210):
+    capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(capa)
+    for x in range(ancho):
+        d.line([(x, 0), (x, bg.height)], fill=(0, 0, 0, int(alpha * (1 - x / ancho))))
+    return Image.alpha_composite(bg, capa)
 
-def render_texto_gradiente(texto, font_path, size, stroke=10, top=(255, 242, 90), bottom=(255, 150, 0)):
-    font = ImageFont.truetype(font_path, size)
-    b = _medir(texto, font, stroke)
-    w = (b[2] - b[0]) + stroke * 2 + 8
-    h = (b[3] - b[1]) + stroke * 2 + 8
-    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(out)
-    ox, oy = stroke + 4 - b[0], stroke + 4 - b[1]
-    d.text((ox, oy), texto, font=font, fill=(10, 10, 10, 255), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
 
-    grad = np.zeros((h, w, 4), dtype=np.uint8)
-    t = np.linspace(0, 1, h)[:, None]
-    grad_rgb = (np.array(top, float) * (1 - t) + np.array(bottom, float) * t).astype(np.uint8)
-    grad[:, :, :3] = np.broadcast_to(grad_rgb[:, None, :], (h, w, 3))
-    grad[:, :, 3] = 255
-
-    grad_img = Image.fromarray(grad, "RGBA")
-    mask = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(mask).text((ox, oy), texto, font=font, fill=255)
-    grad_img.putalpha(mask)
-    return Image.alpha_composite(out, grad_img)
-
-def render_texto_solido(texto, font_path, size, fill=(255, 255, 255), stroke=8):
-    font = ImageFont.truetype(font_path, size)
-    b = _medir(texto, font, stroke)
-    w = (b[2] - b[0]) + stroke * 2 + 8
-    h = (b[3] - b[1]) + stroke * 2 + 8
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(img).text((stroke + 4 - b[0], stroke + 4 - b[1]), texto, font=font,
-                             fill=fill + (255,), stroke_width=stroke, stroke_fill=(10, 10, 10, 255))
-    return img
-
-def render_banner(texto, font_path, size, bg=(198, 30, 30), fg=(255, 255, 255), borde=(255, 235, 59), pad_x=28, pad_y=12):
-    font = ImageFont.truetype(font_path, size)
-    b = _medir(texto, font)
-    tw, th = b[2] - b[0], b[3] - b[1]
-    w = tw + pad_x * 2 + 8
-    h = th + pad_y * 2 + 8
-    img = Image.new("RGBA", (w + 14, h + 16), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([7, 10, w + 7, h + 10], radius=14, fill=(0, 0, 0, 140))
-    d.rounded_rectangle([7, 6, w + 7, h + 6], radius=14, fill=bg + (255,), outline=borde + (255,), width=4)
-    d.text((7 + pad_x - b[0], 6 + pad_y - b[1]), texto, font=font, fill=fg + (255,))
-    return img
-
-def _fit(texto, font_path, size_max, size_min, ancho_max, renderer, **kw):
-    size = size_max
-    while size > size_min:
-        img = renderer(texto, font_path, size, **kw)
-        if img.width <= ancho_max:
-            return img
-        size -= 6
-    return renderer(texto, font_path, size_min, **kw)
-
-def crear_miniatura_larga(img_base, url_producto, ingrediente, problema, titulo_seguro, salida="thumb_largo.jpg"):
-    try:
-        fuente = asegurar_fuente_thumbnail()
-        with Image.open(img_base) as bgf:
-            bg = ImageOps.fit(bgf.convert("RGB"), (1280, 720), Image.Resampling.LANCZOS)
-        bg = ImageEnhance.Color(bg).enhance(1.45)
-        bg = ImageEnhance.Contrast(bg).enhance(1.22)
-        bg = ImageEnhance.Brightness(bg).enhance(1.05)
-        bg = bg.convert("RGBA")
-
-        capa = Image.new("RGBA", bg.size, (0, 0, 0, 0))
-        d = ImageDraw.Draw(capa)
-        for x in range(0, 880):
-            d.line([(x, 0), (x, 720)], fill=(0, 0, 0, int(200 * (1 - x / 880))))
-        for y in range(540, 720):
-            d.line([(0, y), (1280, y)], fill=(0, 0, 0, int(140 * ((y - 540) / 180))))
-        bg = Image.alpha_composite(bg, capa)
-
-        bloques = []
-        linea1 = (" ".join(ingrediente.split()[:2]) or "REMEDIOS NATURALES").upper()
+def _pegar_bloques(bg, bloques, x=46, y=34, y_max=590, rot=2):
+    for b in bloques:
         try:
-            bloques.append(_fit(linea1, fuente, 150, 64, 780, render_texto_gradiente))
+            r = b.rotate(rot, expand=True, resample=Image.BICUBIC)
+            bg.paste(r, (x, y), r)
+            y += r.height + 8
         except Exception as e:
-            print(f"⚠️ Degradado falló ({e}); usando texto sólido amarillo")
-            bloques.append(_fit(linea1, fuente, 150, 64, 780, render_texto_solido, fill=(255, 214, 102)))
-        bloques.append(render_texto_solido("PARA", fuente, 56))
+            print(f"⚠️ Bloque de texto falló: {e}")
+        if y > y_max:
+            break
+    return bg
 
-        partes = [p.strip() for p in (problema or "").split(",") if p.strip()]
-        if not partes:
-            palabras = [p for p in re.sub(r'[^\w\sáéíóúñÁÉÍÓÚÑ]', '', titulo_seguro).split() if len(p) > 3]
-            partes = [" ".join(palabras[:4])] if palabras else ["BIENESTAR NATURAL"]
+
+def _bloque_ingrediente(ing, fuente, ancho_max, size_max):
+    linea = (" ".join(ing.split()[:2]) or "REMEDIOS NATURALES").upper()
+    try:
+        return _fit(linea, fuente, size_max, 64, ancho_max, render_texto_gradiente)
+    except Exception as e:
+        print(f"⚠️ Degradado falló ({e}); texto sólido")
+        return _fit(linea, fuente, size_max, 64, ancho_max, render_texto_solido, fill=(255, 214, 102))
+
+
+def _pegar_producto(bg, url, alto, y=None, margen_der=30):
+    prod = producto_recortado(url)
+    prod = prod.resize((max(1, int(prod.width * (alto / prod.height))), alto), Image.Resampling.LANCZOS)
+    gx = bg.width - prod.width - margen_der
+    gy = y if y is not None else (bg.height - alto) // 2 - 20
+    halo = Image.new("RGBA", bg.size, (0, 0, 0, 0))
+    ImageDraw.Draw(halo).ellipse([gx - 60, gy + alto * 0.45, gx + prod.width + 60, gy + alto + 80], fill=(255, 255, 255, 120))
+    halo = halo.filter(ImageFilter.GaussianBlur(40))
+    bg = Image.alpha_composite(bg, halo)
+    bg.paste(prod, (gx, gy), prod)
+    return bg
+
+
+def crear_miniatura_variante(variante, base, url_producto, ingrediente, problema, gancho, salida):
+    """Zona inferior derecha (duración de YouTube) queda libre. No hay barra con el título."""
+    fuente = asegurar_fuente_thumbnail()
+    bg = _preparar_base(base)
+    gancho = gancho.upper()
+
+    if variante == "A_texto_grande":
+        bg = _gradiente_izq(bg, 900, 215)
+        bloques = [_bloque_ingrediente(ingrediente, fuente, 820, 180),
+                   _fit(gancho, fuente, 92, 44, 760, render_banner, bg=(198, 30, 30))]
+        bg = _pegar_bloques(bg, bloques, y=60)
+        try:
+            bg = _pegar_producto(bg, url_producto, 430, y=60)
+        except Exception as e:
+            print(f"⚠️ Producto en miniatura A falló: {e}")
+
+    elif variante == "B_ingrediente":
+        bg = _gradiente_izq(bg, 760, 170)
+        bloques = [_bloque_ingrediente(ingrediente, fuente, 1000, 210),
+                   _fit(gancho, fuente, 90, 44, 900, render_banner, bg=(20, 90, 40), borde=(255, 255, 255))]
+        bg = _pegar_bloques(bg, bloques, y=170)
+
+    else:  # C_producto
+        bg = _gradiente_izq(bg, 880, 205)
+        bloques = [_bloque_ingrediente(ingrediente, fuente, 720, 150), render_texto_solido("PARA", fuente, 56)]
+        partes = [p.strip() for p in (problema or "").split(",") if p.strip()][:3] or ["BIENESTAR NATURAL"]
         b1, b2 = [], []
         for p in partes:
             if not b2 and len(" ".join(b1 + [p])) <= 30:
                 b1.append(p)
             else:
                 b2.append(p)
-        bloques.append(_fit(" ".join(b1).upper(), fuente, 74, 40, 740, render_banner, bg=(198, 30, 30)))
+        bloques.append(_fit(" ".join(b1).upper(), fuente, 74, 40, 700, render_banner, bg=(198, 30, 30)))
         if b2:
-            bloques.append(_fit(("Y " + " ".join(b2)).upper(), fuente, 74, 40, 740,
-                                render_banner, bg=(20, 90, 40), borde=(255, 255, 255)))
-
-        y = 28
-        for img_bloque in bloques:
-            try:
-                rot = img_bloque.rotate(2, expand=True, resample=Image.BICUBIC)
-                bg.paste(rot, (46, y), rot)
-                y += rot.height + 8
-            except Exception as e:
-                print(f"⚠️ Bloque de texto falló: {e}")
-            if y > 545:
-                break
-
+            bloques.append(_fit(("Y " + " ".join(b2)).upper(), fuente, 74, 40, 700, render_banner,
+                                bg=(20, 90, 40), borde=(255, 255, 255)))
+        bg = _pegar_bloques(bg, bloques, y=28)
         try:
-            rp = requests.get(url_producto, timeout=20, verify=False)
-            prod = Image.open(io.BytesIO(rp.content)).convert("RGBA")
-            try:
-                prod = remove(prod)
-                print("   ✂️ Fondo del producto eliminado para miniatura")
-            except Exception:
-                pass
-            ph = 600
-            prod = prod.resize((max(1, int(prod.width * (ph / prod.height))), ph), Image.Resampling.LANCZOS)
-            gx = 1280 - prod.width - 30
-            gy = (720 - ph) // 2 - 20
-            halo = Image.new("RGBA", bg.size, (0, 0, 0, 0))
-            ImageDraw.Draw(halo).ellipse([gx - 60, gy + ph * 0.45, gx + prod.width + 60, gy + ph + 80],
-                                         fill=(255, 255, 255, 120))
-            halo = halo.filter(ImageFilter.GaussianBlur(40))
-            bg = Image.alpha_composite(bg, halo)
-            bg.paste(prod, (gx, gy), prod)
-            print("   ✅ Producto pegado a la derecha de la miniatura")
+            bg = _pegar_producto(bg, url_producto, 620, y=10)
         except Exception as e:
-            print(f"⚠️ Producto en miniatura falló: {e}")
+            print(f"⚠️ Producto en miniatura C falló: {e}")
 
-        bar = Image.new("RGBA", bg.size, (0, 0, 0, 0))
-        db = ImageDraw.Draw(bar)
-        db.rectangle([(0, 648), (1280, 720)], fill=(0, 0, 0, 175))
-        db.text((40, 664), titulo_seguro.upper()[:64], font=ImageFont.truetype(fuente, 40), fill=(255, 214, 102, 255))
-        bg = Image.alpha_composite(bg, bar)
+    rgb = bg.convert("RGB")
+    rgb.save(salida, "JPEG", quality=92)
+    if os.path.getsize(salida) > 1_900_000:  # límite de YouTube: 2 MB
+        rgb.save(salida, "JPEG", quality=78)
+    return salida
 
-        bg.convert("RGB").save(salida, "JPEG", quality=93)
-        print(f"✅ Miniatura V3 estilo viral creada: {salida}")
-        return salida
-    except Exception as e:
-        print(f"⚠️ Error miniatura V3: {e}")
-        return None
+
+def puntuar_miniatura(path, num_palabras_texto):
+    """Heurística 0-100: contraste, saturación y legibilidad del texto a ~170 px de ancho."""
+    try:
+        im = Image.open(path).convert("RGB").resize((336, 189), Image.Resampling.LANCZOS)
+        arr = np.asarray(im).astype(float)
+        lum = 0.299 * arr[:, :, 0] + 0.587 * arr[:, :, 1] + 0.114 * arr[:, :, 2]
+        contraste = lum.std()
+        sat = np.asarray(im.convert("HSV"))[:, :, 1].mean()
+        izq = lum[:, :int(336 * 0.55)]
+        legibilidad = (np.abs(np.diff(izq, axis=1)).mean() + np.abs(np.diff(izq, axis=0)).mean()) / 2
+        score = (min(contraste / 70, 1) * 30 + min(sat / 140, 1) * 20 +
+                 min(legibilidad / 14, 1) * 35 + (15 if num_palabras_texto <= 4 else 0))
+        return round(score, 1)
+    except Exception:
+        return 0.0
+
+
+def generar_y_elegir_miniatura(base, url_producto, ingrediente, problema, titulo):
+    gancho = elegir_gancho_miniatura(titulo)
+    print(f"🖼️ Gancho de miniatura (complementa el título): {gancho}")
+    variantes = ["A_texto_grande", "B_ingrediente", "C_producto"]
+    resultados = []
+    for v in variantes:
+        ruta = f"thumb_largo_{v}.jpg"
+        try:
+            crear_miniatura_variante(v, base, url_producto, ingrediente, problema, gancho, ruta)
+            n_pal = len(gancho.split()) + len(ingrediente.split()[:2])
+            sc = puntuar_miniatura(ruta, n_pal)
+            resultados.append((sc, v, ruta))
+            print(f"   🖼️ Variante {v}: score {sc}")
+        except Exception as e:
+            print(f"⚠️ Variante {v} falló: {e}")
+    if not resultados:
+        return None, None, gancho
+    resultados.sort(reverse=True)
+    elegido = resultados[0]
+    # 20% de exploración para recolectar datos de CTR de otras variantes
+    if len(resultados) > 1 and random.random() < 0.2:
+        elegido = random.choice(resultados[1:])
+        print("   🔬 Exploración: se usa una variante alternativa para comparar CTR")
+    print(f"✅ Miniatura elegida: {elegido[1]} (score {elegido[0]})")
+    return elegido[2], elegido[1], gancho
+
+
+def registrar_miniatura(video_id, variante, titulo, gancho):
+    hist = _leer_json(MINIATURAS_HIST_FILE, [])
+    hist.append({"video_id": video_id, "variante": variante, "titulo": titulo, "gancho": gancho,
+                 "fecha": datetime.now().isoformat()})
+    _escribir_json(MINIATURAS_HIST_FILE, hist[-200:])
+
 
 # ================================================================
-# 📤 SUBIR A YOUTUBE (CON REINTENTOS + VALIDACIÓN DE TAGS + EMERGENCIA)
+# YOUTUBE
 # ================================================================
 def obtener_credenciales_youtube():
     creds = Credentials.from_authorized_user_info(YOUTUBE_USER_TOKEN)
     if creds.expired and creds.refresh_token:
-        print("🔄 Token expirado, refrescando automáticamente...")
+        print("🔄 Token expirado, refrescando...")
         try:
             creds.refresh(Request())
-            print("✅ Token refrescado exitosamente")
+            print("✅ Token refrescado")
         except Exception as e:
             print(f"❌ Error refrescando token: {e}")
             sys.exit(1)
     return creds
 
-def fijar_comentario_contacto(youtube, video_id, ingrediente="", problema=""):
-    """Comentario con PREGUNTA (dispara comentarios = señal de ranking)."""
+
+def tema_playlist(problema):
+    pn = normalizar(problema)
+    for clave, nombre in TEMAS_PLAYLIST:
+        if clave in pn:
+            return nombre
+    return "bienestar general"
+
+
+def asignar_playlist(youtube, video_id, problema):
+    titulo_pl = f"Remedios naturales: {tema_playlist(problema)}"
     try:
-        prob_corto = problema.split(",")[0].strip().lower() if problema else "tu bienestar"
-        texto = (
-            f"🌿 {ingrediente.upper()} para {prob_corto}: ¿lo habías usado antes?\n"
-            f"👇 Cuéntame en los comentarios qué otro remedio natural quieres que investigue\n\n"
-            f"📲 WhatsApp: {WHATSAPP_NUMBER}\n"
-            f"📞 Teléfono: {TELEFONO_NUMBER}\n"
-            f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n"
-            f"🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}"
-        )
+        pid, token = None, None
+        while True:
+            r = youtube.playlists().list(part="snippet", mine=True, maxResults=50, pageToken=token).execute()
+            for it in r.get("items", []):
+                if it["snippet"]["title"] == titulo_pl:
+                    pid = it["id"]
+            token = r.get("nextPageToken")
+            if pid or not token:
+                break
+        if not pid:
+            r = youtube.playlists().insert(
+                part="snippet,status",
+                body={"snippet": {"title": titulo_pl, "defaultLanguage": "es",
+                                  "description": f"Videos educativos de herbolaria mexicana y remedios naturales sobre {tema_playlist(problema)}."},
+                      "status": {"privacyStatus": "public"}}).execute()
+            pid = r["id"]
+            print(f"📚 Playlist creada: {titulo_pl}")
+        youtube.playlistItems().insert(
+            part="snippet",
+            body={"snippet": {"playlistId": pid, "resourceId": {"kind": "youtube#video", "videoId": video_id}}}).execute()
+        print(f"✅ Video añadido a playlist: {titulo_pl}")
+    except Exception as e:
+        print(f"⚠️ Playlist no asignada (¿falta scope 'youtube'?): {str(e)[:150]}")
+
+
+def subir_subtitulos(youtube, video_id, srt_path):
+    try:
+        youtube.captions().insert(
+            part="snippet",
+            body={"snippet": {"videoId": video_id, "language": "es", "name": "Español", "isDraft": False}},
+            media_body=MediaFileUpload(srt_path, mimetype="application/octet-stream", resumable=True)).execute()
+        print("✅ Subtítulos SRT subidos (YouTube los indexa)")
+    except Exception as e:
+        print(f"⚠️ Subtítulos no subidos (requiere scope youtube.force-ssl): {str(e)[:150]}")
+
+
+def publicar_comentario_contacto(youtube, video_id, ingrediente="", problema=""):
+    """Publica un comentario con pregunta. La API NO permite fijarlo: hay que fijarlo a mano en Studio."""
+    try:
+        prob = problema.split(",")[0].strip().lower() if problema else "tu bienestar"
+        texto = (f"🌿 {ingrediente.upper()} para {prob}: ¿lo habías usado antes?\n"
+                 f"👇 Cuéntame en los comentarios qué otro remedio natural quieres que investigue\n\n"
+                 f"📲 WhatsApp: {WHATSAPP_NUMBER}\n📞 Teléfono: {TELEFONO_NUMBER}\n"
+                 f"🤖 Asistente inteligente en Telegram: {TELEGRAM_BOT}\n🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}")
         youtube.commentThreads().insert(
             part="snippet",
-            body={"snippet": {"videoId": video_id,
-                              "topLevelComment": {"snippet": {"textOriginal": texto}}}}
-        ).execute()
-        print("✅ Comentario con pregunta publicado")
+            body={"snippet": {"videoId": video_id, "topLevelComment": {"snippet": {"textOriginal": texto}}}}).execute()
+        print("✅ Comentario con pregunta publicado (fíjalo manualmente en Studio)")
     except Exception as e:
         print(f"⚠️ Error comentario: {e}")
 
-def validar_tags_youtube(tags_str):
-    """Validación ultra-estricta de tags para YouTube."""
-    if not tags_str:
-        return "remedios naturales, salud natural, bienestar"
-    
-    tags_lista = [t.strip().lower() for t in tags_str.split(",") if t.strip()]
-    tags_validos = []
-    
-    for tag in tags_lista:
-        tag_limpio = re.sub(r'\s+', ' ', tag).strip()
-        
-        if len(tag_limpio) > 29:
-            continue
-        
-        if len(tag_limpio) < 2:
-            continue
-            
-        if not re.match(r'^[a-záéíóúüñ0-9\s]+$', tag_limpio):
-            continue
-        
-        if "..." in tag_limpio:
-            continue
-            
-        if tag_limpio not in tags_validos:
-            tags_validos.append(tag_limpio)
-    
-    if len(tags_validos) < 3:
-        tags_validos = ["remedios naturales", "salud natural", "bienestar"]
-    
-    resultado = []
-    total_chars = 0
-    for tag in tags_validos[:30]:
-        if total_chars + len(tag) + 1 > 495:
-            break
-        resultado.append(tag)
-        total_chars += len(tag) + 1
-    
-    return ", ".join(resultado)
 
-def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto, ingrediente, problema=None, capitulos_dinamicos=""):
-    creds = obtener_credenciales_youtube()
-    youtube = build("youtube", "v3", credentials=creds)
-
+def construir_descripcion(ing, problema, gancho, contexto, capitulos, sugerencias):
+    Ing = ing[:1].upper() + ing[1:]
+    prob = problema.split(",")[0].strip().lower() if problema else ""
+    linea1 = (f"{Ing} para {prob}: beneficios y uso tradicional | remedios naturales" if prob
+              else f"{Ing}: para qué sirve, beneficios y cómo usarlo | remedios naturales")
+    tag_ing = re.sub(r"[^a-z0-9áéíóúüñ]", "", ing.lower())
+    hashtags = [f"#{tag_ing}", "#remediosnaturales", "#herbolaria", "#saludnatural",
+                "#medicinanatural", "#plantasmedicinales", "#remedioscaseros"]
+    relacionadas = []
+    for s in sugerencias[:12]:
+        if s["frase"] not in relacionadas:
+            relacionadas.append(s["frase"])
+    busquedas = ", ".join(relacionadas[:8]) or f"{ing} beneficios, {ing} propiedades, para qué sirve {ing}"
     problema_str = f"\n🎯 Útil para: {problema}" if problema else ""
-    problema_corto = problema.split(",")[0].strip().lower() if problema else "bienestar"
-    
-    tags_validados = validar_tags_youtube(tags_str)
-    print(f"🏷️ Tags validados para YouTube ({len(tags_validados.split(','))} tags)")
 
-    # 🔥 DESCRIPCIÓN KEYWORD-DENSA NIVEL 2
-    descripcion = f"""🌿 {ingrediente} para {problema_corto} | remedios naturales y herbolaria mexicana
+    d = f"""{linea1}
 
 {gancho}
 
@@ -1695,188 +2029,216 @@ def subir_video_largo(video_path, thumb_path, titulo, tags_str, gancho, contexto
 🔑 CONTRASEÑA DEL BOT: {TELEGRAM_PASSWORD}
 {problema_str}
 
-🌿 INGREDIENTE ESTRELLA: {ingrediente}
+⏱️ CAPÍTULOS:
+{capitulos}
 
-⏱️ CAPÍTULOS (basados en el audio real del video):
-{capitulos_dinamicos}
+🌿 EN ESTE VIDEO:
+• {Ing}: origen y uso tradicional en México
+• Cómo se relaciona {ing} con {prob or 'el bienestar'} según la herbolaria
+• 3 beneficios tradicionales
+• El producto con {ing} y cómo usarlo
 
-⚕️ AVISO: Este video es contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
+🔎 Búsquedas relacionadas: {busquedas}
 
-🔍 EN ESTE VIDEO:
-• {ingrediente}: origen y uso tradicional en México
-• Cómo apoya {ingrediente} en {problema_corto}
-• 3 beneficios según la herbolaria
-• El producto con {ingrediente} y cómo usarlo
+⚕️ AVISO: Contenido educativo basado en la tradición herbolaria mexicana. No sustituye la consulta médica profesional.
 
-🔎 Búsquedas relacionadas: {ingrediente} beneficios, {ingrediente} propiedades, remedios para {problema_corto}, hierbas medicinales mexicanas, medicina natural, plantas medicinales
+{' '.join(hashtags)}"""
+    if ACTIVAR_DISCLOSURE_IA:
+        d += DISCLOSURE_TEXT
+    return d.replace("<", "").replace(">", "")[:5000]
 
-#remediosnaturales #remedioscaseros #saludnatural #medicinanatural #herbolaria #hierbasmedicinales #{ingrediente.replace(' ', '')}"""
 
-    if ACTIVAR_DISCLOSURE_IA: descripcion += DISCLOSURE_TEXT
+def subir_video_largo(video_path, thumb_path, titulo, tags_por_nivel, gancho, contexto, ingrediente,
+                      problema, capitulos, sugerencias, srt_path):
+    creds = obtener_credenciales_youtube()
+    youtube = build("youtube", "v3", credentials=creds)
 
+    descripcion = construir_descripcion(ingrediente, problema, gancho, contexto, capitulos, sugerencias)
+    nivel = 0
     body = {
-        "snippet": {"title": titulo[:100], "description": descripcion[:5000],
-                    "tags": [t.strip() for t in tags_validados.split(",") if t.strip()][:30],
+        "snippet": {"title": titulo[:100], "description": descripcion,
+                    "tags": [t.strip() for t in tags_por_nivel[nivel].split(",") if t.strip()],
                     "categoryId": "26", "defaultLanguage": "es", "defaultAudioLanguage": "es"},
         "status": {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True},
     }
-    
+    print(f"🏷️ Tags nivel {nivel}: {len(body['snippet']['tags'])} tags")
+
     video_id = None
-    tags_emergencia_usados = False
-    
-    for intento in range(1, 5):
+    for intento in range(1, 6):
         try:
-            print(f"📤 Subiendo video a YouTube (intento {intento}/4)...")
+            print(f"📤 Subiendo video (intento {intento}/5)...")
             media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
-            response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
-            video_id = response["id"]
-            print(f"✅ Video largo subido con SEO viral: https://youtu.be/{video_id}")
-            if tags_emergencia_usados:
-                print(f"   🆘 Se usaron tags de emergencia (los originales fueron rechazados)")
+            video_id = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()["id"]
+            print(f"✅ Video subido: https://youtu.be/{video_id}")
             break
         except Exception as e:
-            error_str = str(e)
-            
-            if "invalidTags" in error_str or "invalid video keywords" in error_str.lower():
-                print(f"⚠️ YouTube rechazó los tags (intento {intento}/4): {error_str[:150]}...")
-                
-                if not tags_emergencia_usados:
-                    print(f"🆘 Activando TAGS DE EMERGENCIA ultra-seguros...")
-                    tags_emergencia = generar_tags_emergencia(ingrediente)
-                    body["snippet"]["tags"] = [t.strip() for t in tags_emergencia.split(",") if t.strip()][:15]
-                    tags_emergencia_usados = True
-                    print(f"   🏷️ Tags de emergencia ({len(body['snippet']['tags'])} tags): {tags_emergencia[:100]}...")
-                    time.sleep(5)
-                    continue
-                else:
-                    print(f"❌ Los tags de emergencia también fallaron. Error: {e}")
+            s = str(e)
+            if "invalidTags" in s or "invalid video keywords" in s.lower():
+                nivel += 1
+                if nivel >= len(tags_por_nivel):
+                    print("❌ Los tags de emergencia también fueron rechazados")
                     raise
-            elif "502" in error_str or "503" in error_str or "504" in error_str or "Bad Gateway" in error_str:
-                print(f"⚠️ Error temporal de YouTube (intento {intento}/4): {error_str[:100]}...")
-                if intento < 4:
-                    espera = 30 * intento
-                    print(f"⏳ Esperando {espera}s antes de reintentar...")
-                    time.sleep(espera)
-                else:
-                    print(f"❌ Falló tras 4 intentos. Error: {e}")
+                print(f"⚠️ YouTube rechazó los tags. Bajando a nivel {nivel} ({'estricto' if nivel == 1 else 'emergencia'})...")
+                body["snippet"]["tags"] = [t.strip() for t in tags_por_nivel[nivel].split(",") if t.strip()]
+                time.sleep(5)
+            elif any(c in s for c in ("502", "503", "504", "Bad Gateway")):
+                if intento >= 5:
                     raise
+                espera = 30 * intento
+                print(f"⚠️ Error temporal de YouTube. Esperando {espera}s...")
+                time.sleep(espera)
             else:
                 print(f"❌ Error subiendo a YouTube: {e}")
                 raise
+    if not video_id:
+        raise RuntimeError("No se pudo subir el video")
 
     if thumb_path and os.path.exists(thumb_path):
         try:
-            mt = MediaFileUpload(thumb_path, chunksize=-1, resumable=True, mimetype="image/jpeg")
-            youtube.thumbnails().set(videoId=video_id, media_body=mt).execute()
-            print("✅ Miniatura V3 personalizada subida")
+            youtube.thumbnails().set(videoId=video_id, media_body=MediaFileUpload(thumb_path, mimetype="image/jpeg")).execute()
+            print("✅ Miniatura personalizada subida")
         except Exception as e:
             print(f"⚠️ Error miniatura: {e}")
 
-    fijar_comentario_contacto(youtube, video_id, ingrediente, problema or "")
+    if srt_path and os.path.exists(srt_path):
+        subir_subtitulos(youtube, video_id, srt_path)
+    asignar_playlist(youtube, video_id, problema or "")
+    publicar_comentario_contacto(youtube, video_id, ingrediente, problema or "")
     return video_id
 
+
 # ================================================================
-# 🚀 MAIN
+# MAIN
 # ================================================================
 def main():
-    print("🎬 Bot VIDEOS LARGOS Herbolaria NIVEL 2 (Anti-patrón + Tags 500 chars + SEO denso)")
+    print("🎬 Bot VIDEOS LARGOS Herbolaria — SEO ELITE v3")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⏰ Ventana de publicación: 4:00 AM a 11:59 PM CDMX (excepto madrugada)")
 
     estado = cargar_estado()
     if not deberia_publicar_ahora(estado):
         guardar_estado(estado)
         sys.exit(0)
+    if not os.path.exists(EXCEL_FILE):
+        print(f"❌ No se encuentra {EXCEL_FILE}")
+        sys.exit(1)
 
     producto, ingrediente = seleccionar_producto_e_ingrediente_largo()
-    tema_viral = max(TEMAS_VIRALES_SALUD, key=lambda x: x.get("ctr_potencial", 0) * random.uniform(0.8, 1.2))
-    problema = producto.get('recomendado_para', '')
+    tema_viral = max(TEMAS_VIRALES_SALUD, key=lambda x: x["ctr_potencial"] * random.uniform(0.8, 1.2))
+    problema = producto.get("recomendado_para", "")
     print(f"📦 Producto: {producto['nombre']} | 🌱 Ingrediente: {ingrediente}")
     print(f"🎯 Tema: {tema_viral['tema']} | 💊 Problema: {problema}")
 
-    guion = ia_genera_guion_largo(producto, ingrediente, tema_viral)
-    ingrediente_hablado = guion.get("ingrediente_real", ingrediente)
+    # 1) Keywords reales (autocompletado YouTube México)
+    print("🔎 Consultando autocompletado de YouTube...")
+    sugerencias = obtener_sugerencias(ingrediente)
+    print(f"   {len(sugerencias)} frases reales. Top: {[s['frase'] for s in sugerencias[:5]]}")
+
+    # 2) Guion
+    guion = ia_genera_guion_largo(producto, ingrediente, tema_viral, sugerencias)
+    ing_real = guion["ingrediente_real"]
+    if normalizar(ing_real) != normalizar(ingrediente):
+        sugerencias = obtener_sugerencias(ing_real) or sugerencias
+
+    # 3) Título con score
+    print("⚡ Eligiendo título por score...")
+    historial = cargar_titulos()
+    titulo, score_t, det_t = elegir_mejor_titulo(guion.get("titulos_candidatos", []), ing_real,
+                                                     problema, sugerencias, historial)
+    print(f"🔥 TÍTULO [{score_t}/100]: {titulo}  ({len(titulo)} caracteres)")
+
+    # 4) Tags en 3 niveles (normal → estricto → emergencia)
+    tags_normal = construir_tags(ing_real, problema, titulo, sugerencias, tema_viral)
+    tags_estricto = construir_tags(ing_real, problema, titulo, sugerencias, tema_viral, estricto=True)
+    tags_emergencia = generar_tags_emergencia(ing_real)
+    print(f"🏷️ Tags ({len(tags_normal.split(','))}): {tags_normal[:140]}...")
+
+    # 5) Voz + imágenes + audio por segmento
     voz = validar_voz()
-
-    orden = ["hook", "problema", "ingrediente", "beneficio_1", "beneficio_2", "beneficio_3", "producto", "cta"]
-    segmentos_img = []
-
     fondo_producto = buscar_imagen_segmento(
-        guion["segmentos"]["producto"].get("query_pexels", f"{ingrediente_hablado} natural"),
-        "bg_producto.jpg"
-    )
+        guion["segmentos"]["producto"].get("query_pexels", f"{ing_real} natural"), "bg_producto.jpg")
 
-    for i, clave in enumerate(orden):
+    segmentos_img, segmentos_info = [], []
+    for i, clave in enumerate(ORDEN_SEGMENTOS):
         seg = guion["segmentos"][clave]
-        print(f"\n🎬 Segmento {i+1}/8: {clave}")
+        print(f"\n🎬 Segmento {i + 1}/8: {clave}")
         img_path = f"img_largo_{i}.jpg"
 
         if clave in ("producto", "cta"):
             if not componer_producto_horizontal(producto["imagen_url"], fondo_producto, img_path):
-                if os.path.exists(fondo_producto):
-                    with Image.open(fondo_producto) as im:
-                        ImageOps.fit(im.convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS).save(img_path, "JPEG", quality=90)
-                else:
-                    buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
+                with Image.open(fondo_producto) as im:
+                    ImageOps.fit(im.convert("RGB"), (ANCHO, ALTO), Image.Resampling.LANCZOS).save(img_path, "JPEG", quality=90)
         else:
-            buscar_imagen_segmento(seg.get("query_pexels", f"{ingrediente_hablado} plant natural"), img_path)
+            buscar_imagen_segmento(seg.get("query_pexels", f"{ing_real} plant natural"), img_path)
 
         img_path = potenciar_imagen_segmento(img_path)
-
         tp = seg.get("texto_pantalla", "")
-        if tp:
+        if tp and texto_seguro(tp):
             img_path = quemar_texto_pantalla(img_path, tp, img_path, estilo="center" if clave == "hook" else "lower")
 
         audio_path = f"audio_largo_{i}.mp3"
-        audio_generado = generar_audio(seg["texto"], audio_path, voz, max_intentos=3)
-        if not audio_generado:
-            print(f"❌ Falló audio del segmento {clave} tras todos los intentos")
+        res = generar_audio(seg["texto"], audio_path, voz, max_intentos=3)
+        if not res:
+            print(f"❌ Falló el audio del segmento {clave}")
             sys.exit(1)
+        eventos, voz = res  # la voz se mantiene para el resto del video
         segmentos_img.append({"img_path": img_path, "audio_path": audio_path})
+        segmentos_info.append({"texto": seg["texto"], "eventos": eventos})
 
-    video_path, duraciones_segmentos, duracion_total = montar_video_largo(segmentos_img)
-    
-    capitulos_dinamicos = generar_capitulos_dinamicos(duraciones_segmentos)
-    print(f"\n⏱️ Capítulos generados dinámicamente:")
-    print(capitulos_dinamicos)
-    print(f"⏱️ Duración total del video: {formatear_timestamp(duracion_total)}")
+    # 6) Montaje
+    video_path, duraciones, duracion_total = montar_video_largo(segmentos_img)
+    inicio = 0.0
+    for info, dur in zip(segmentos_info, duraciones):
+        info["inicio"] = inicio
+        info["duracion"] = dur
+        inicio += dur
 
-    base_thumb = buscar_fondo_ia_flux(f"{ingrediente_hablado} plant natural vivid macro")
+    capitulos = generar_capitulos_seo(duraciones, guion, ing_real, problema)
+    print(f"\n⏱️ Capítulos:\n{capitulos}\n⏱️ Duración total: {formatear_timestamp(duracion_total)}")
+    srt_path = construir_srt(segmentos_info)
+
+    # 7) Miniatura: 3 variantes + score
+    base_thumb = buscar_fondo_ia_flux(f"{ing_real} plant natural vivid macro")
     if not base_thumb:
-        url_bg = buscar_imagen_pexels_horizontal(f"{ingrediente_hablado} plant natural")
-        if url_bg:
-            base_thumb = descargar_imagen(url_bg, "bg_pexels.jpg")
-        else:
-            base_thumb = "img_largo_2.jpg"
-    thumb = crear_miniatura_larga(base_thumb, producto["imagen_url"], ingrediente_hablado, problema, guion["titulo"])
+        url_bg = buscar_imagen_pexels_horizontal(f"{ing_real} plant natural")
+        base_thumb = descargar_imagen(url_bg, "bg_pexels.jpg") if url_bg else "img_largo_2.jpg"
+    thumb, variante, gancho_thumb = generar_y_elegir_miniatura(base_thumb, producto["imagen_url"], ing_real, problema, titulo)
 
+    # 8) Subida
     video_id = subir_video_largo(
-        video_path, thumb, guion["titulo"], guion["tags"],
-        guion["gancho_descripcion"], guion["contexto_descripcion"],
-        ingrediente_hablado, problema,
-        capitulos_dinamicos=capitulos_dinamicos
-    )
+        video_path, thumb, titulo, [tags_normal, tags_estricto, tags_emergencia],
+        guion.get("gancho_descripcion", ""), guion.get("contexto_descripcion", ""),
+        ing_real, problema, capitulos, sugerencias, srt_path)
 
+    # 9) Estado
     guardar_ingrediente_largo_usado(ingrediente, producto["nombre"])
-    guardar_titulo(guion["titulo"])
+    guardar_titulo(titulo)
+    if variante:
+        registrar_miniatura(video_id, variante, titulo, gancho_thumb)
     estado["publicaciones_hoy"] = estado.get("publicaciones_hoy", 0) + 1
     estado["ultima_publicacion"] = datetime.now(pytz.timezone("America/Mexico_City")).isoformat()
     guardar_estado(estado)
 
-    print(f"\n🎉 VIDEO LARGO NIVEL 2 PUBLICADO: https://youtu.be/{video_id}")
+    print(f"\n🎉 VIDEO PUBLICADO: https://youtu.be/{video_id}")
     print(f"   📱 WhatsApp: {WHATSAPP_NUMBER}")
     print(f"   📞 Teléfono: {TELEFONO_NUMBER}")
     print(f"   🤖 Telegram: {TELEGRAM_BOT}")
-    print(f"   🔑 Contraseña del bot: {TELEGRAM_PASSWORD}")
+    print("   ℹ️ Recuerda fijar el comentario manualmente en YouTube Studio (la API no lo permite).")
 
     for f in os.listdir("."):
-        if f.startswith(("img_largo_", "audio_largo_")) or f in ("cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "thumb_largo.jpg", "bg_ia.jpg", "bg_pexels.jpg", "bg_producto.jpg"):
-            try: os.remove(f)
-            except Exception: pass
+        if f.startswith(("img_largo_", "audio_largo_", "thumb_largo_")) or f in (
+                "cta_overlay.png", "aviso_overlay.png", "largo_final.mp4", "bg_ia.jpg", "bg_pexels.jpg",
+                "bg_producto.jpg", "subtitulos_largo.srt", "test_voz.mp3"):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     try:
         main()
+    except SystemExit:
+        raise
     except Exception as e:
         print(f"❌ Error fatal: {e}")
         import traceback
